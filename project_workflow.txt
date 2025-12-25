@@ -1,0 +1,286 @@
+# Slitherlink: Technical Architecture & Algorithm Deep-Dive
+
+This document provides a comprehensive technical breakdown of the Slitherlink (Human vs CPU) game, focusing on Greedy algorithms, Graph theory, and Prioritization logic.
+
+---
+
+## 1. Graph Representation (The Infrastructure)
+
+The game board is a **Planar Graph** where:
+- **Nodes (Vertices)**: The dot intersections $(i, j)$.
+- **Edges**: The horizontal and vertical segments connecting dots.
+- **Cells (Faces)**: The square regions containing clues.
+
+### Data Structure:
+- Each **Node** maintains an *Adjacency List* (`List<Edge> edges`). This allows $O(1)$ lookup of connected segments to check vertex degrees.
+- Each **Edge** stores its endpoints (`Node a, b`) and its `EdgeStatus` (ACTIVE, INACTIVE, UNKNOWN).
+- The **Board** class manages the 2D arrays of these objects, facilitating coordinate-to-logic mapping.
+
+---
+
+## 2. Greedy Algorithms (The Intelligence)
+
+A "Greedy" approach is used because it makes decisions based on local information that is guaranteed to be globally correct.
+
+### A. Cell-Clue Greedy (Usage: Logic Deductions)
+**Steps:**
+1. **Saturation Step**: If the number of `ACTIVE` edges around a cell equals its clue, mark all other `UNKNOWN` edges of that cell as `INACTIVE`.
+2. **Requirement Step**: If the number of `ACTIVE` + `UNKNOWN` edges around a cell equals its clue, mark all `UNKNOWN` edges as `ACTIVE`.
+
+### B. Node-Degree Greedy (Usage: Path Continuity)
+**Steps:**
+1. **Extension Step**: If a Node has exactly 1 `ACTIVE` edge and only 1 `UNKNOWN` edge, that `UNKNOWN` edge **must** be activated to continue the loop (since degree must be 2).
+2. **Termination Step**: If a Node already has 2 `ACTIVE` edges, any other `UNKNOWN` edges connected to it must be marked `INACTIVE` to prevent a T-junction.
+
+### C. Constraint Greedy (Usage: Solving)
+- These two logics are run in a **While Loop** (Repeat until no more changes). This propagates information across the board like a wave.
+
+---
+
+## 3. Sorting & Prioritization (The Heuristics)
+
+While the full `EdgeSorter` was removed to simplify the logic, the CPU still follows a "Prioritized Search" when guessing:
+
+### Steps for Prioritizing Guessing:
+1. **High-Constraint Selection**: The CPU prioritizes guessing edges that are part of a cell with a high clue (e.g., '3').
+2. **Neighbor Priority**: The CPU looks for `UNKNOWN` edges that are adjacent to already `ACTIVE` edges (extending the current path).
+3. **Sequential Selection**: If no high-priority edge is found, it performs a linear scan of the board.
+
+---
+
+## 4. Algorithmic Workflow (Step-by-Step)
+
+### CPU Turn Execution:
+1. **Scan**: Run `Greedy.java` cell logic on all cells.
+2. **Scan**: Run `Greedy.java` node logic on all nodes.
+3. **Apply**: If any "Forced Move" is found, apply it and end turn.
+4. **Fallback**: If "stuck", find the **First Available Unknown Edge** (linear prioritization) and test a hypothesis:
+   - "What if this is Active?" -> Check if `Validator.validatePartial()` is true.
+   - If fail -> "It must be Inactive."
+   - This effectively replaces complex sorting with a "fail-fast" validation check.
+
+---
+
+## 5. Win Validation (Graph Theory)
+
+To ensure the loop is valid and singular:
+1. **Degree Check**: All nodes must have degree 0 or 2.
+2. **Edge Count**: Total active edges must equal total nodes in the loop.
+3. **Connectivity (DSU Algorithm)**:
+   - Use **Disjoint Set Union** to group all active nodes into "sets".
+   - If by the end, all nodes belong to a **single set**, the loop is connected.
+   - If multiple sets exist, there are "islands" of loops, which is illegal in Slitherlink.
+
+---
+
+## 6. Summary of Algorithm Usage
+| File | Algorithm / Concept | Usage |
+| :--- | :--- | :--- |
+| `Validator.java` | **DSU / Graph Traversal** | Ensures exactly one closed loop exists. |
+| `Greedy.java` | **Greedy Satisfiability** | Makes certain deductions based on local constraints. |
+| `SlitherlinkApp.java` | **Distance-to-Line (Geometry)** | Calculates the closest edge for perfect click detection. |
+| `PuzzleGenerator.java` | **Procedural Graph Walk** | Generates a valid circuit before assigning clues. |
+| `GameController.java` | **Heuristic Search** | Orchestrates turns and handles CPU "guessing" logic. |
+
+---
+
+## 7. Core Algorithm Pseudo-Code
+
+### A. Perfect Click Detection (Distance to Segment)
+Used in `SlitherlinkApp.java` to eliminate "dead zones" by finding the absolute closest edge.
+
+```pseudo
+function findEdgeAt(mouseX, mouseY, minDist):
+    closestEdge = null
+    minDistFound = minDist
+    
+    for each edge in board.getAllEdges():
+        x1, y1 = edge.nodeA.screenCoords()
+        x2, y2 = edge.nodeB.screenCoords()
+        
+        // Calculate distance from point (mouseX, mouseY) to segment (x1,y1)-(x2,y2)
+        dist = distanceToSegment(mouseX, mouseY, x1, y1, x2, y2)
+        
+        if dist < minDistFound:
+            minDistFound = dist
+            closestEdge = edge
+            
+    return closestEdge
+```
+
+### B. Greedy CPU Logic (Cell Scaling)
+Used in `Greedy.java` to deduplicate forced moves.
+
+```pseudo
+function applyCellLogic(cell):
+    activeCount = cell.countActiveEdges()
+    unknownCount = cell.countUnknownEdges()
+    clue = cell.getClue()
+    
+    // Case 1: Clue satisfied
+    if activeCount == clue:
+        for each edge in cell.edges:
+            if edge.status == UNKNOWN:
+                edge.setStatus(INACTIVE, Player.CPU)
+                
+    // Case 2: Clue requires all remaining
+    if activeCount + unknownCount == clue:
+        for each edge in cell.edges:
+            if edge.status == UNKNOWN:
+                edge.setStatus(ACTIVE, Player.CPU)
+```
+
+### C. Greedy CPU Logic (Node Degree)
+Used in `Greedy.java` to enforce loop continuity.
+
+```pseudo
+function applyNodeLogic(node):
+    activeCount = node.countActiveEdges()
+    unknownCount = node.countUnknownEdges()
+    
+    // Case 1: Node has 2 active edges (Loop segment complete)
+    if activeCount == 2:
+        for each edge in node.edges:
+            if edge.status == UNKNOWN:
+                edge.setStatus(INACTIVE, Player.CPU)
+                
+    // Case 2: Node has 1 active edge and only 1 way to go
+    if activeCount == 1 and unknownCount == 1:
+        for each edge in node.edges:
+            if edge.status == UNKNOWN:
+                edge.setStatus(ACTIVE, Player.CPU)
+```
+
+### D. CPU Decision Making (Heuristic Guessing)
+Used in `GameController.java` when logical deductions are exhausted.
+
+```pseudo
+function executeCpuMove():
+    // 1. Try logical deductions first
+    if Greedy.applyAllDeductions():
+        return true
+        
+    // 2. Fallback: Search for first unknown edge to "test"
+    for each edge in board.getAllEdges():
+        if edge.status == UNKNOWN:
+            // Hypothesis: What if this is ACTIVE?
+            board.tempSet(edge, ACTIVE)
+            if Validator.isPartiallyValid():
+                edge.setStatus(ACTIVE, Player.CPU)
+                return true
+            else:
+                // Contradiction: It must be INACTIVE
+                edge.setStatus(INACTIVE, Player.CPU)
+                return true
+                
+    return false // No moves possible
+```
+
+### E. Puzzle Generation (Random Walk)
+Used in `PuzzleGenerator.java` to create guaranteed solvable loops.
+
+```pseudo
+function generate(rows, cols):
+    loop = new List<Edge>()
+    currentNode = board.getRandomNode()
+    
+    while loopNotClosed:
+        nextEdge = currentNode.getRandomNeighbor()
+        if nextEdge is not in loop:
+            loop.add(nextEdge)
+            currentNode = nextEdge.otherNode(currentNode)
+            
+    // Derive clues from the generated list of edges
+    for each cell in board:
+        clue = countEdgesInLoop(cell)
+        cell.setClue(clue)
+        
+    // Obfuscation: Remove a percentage of clues
+    removeRandomClues(30%)
+```
+
+### F. Win Validation (DSU Single Loop Check)
+Used in `Validator.java` to ensure the final state is a single connected circuit.
+
+```pseudo
+function isGameSolved():
+    if !allCluesSatisfied() or !allNodesDegree0or2():
+        return false
+        
+    dsu = new DisjointSetUnion(totalNodes)
+    activeEdges = getAllActiveEdges()
+    
+    for each edge in activeEdges:
+        dsu.union(edge.nodeA, edge.nodeB)
+        
+    // Count distinct sets containing active nodes
+    rootSets = new Set()
+    for each node in board:
+        if node.degree > 0:
+            rootSets.add(dsu.find(node))
+            
+    // Game is solved if and only if there exactly ONE connected component
+    return rootSets.size() == 1
+```
+
+### G. Partial Validation (Safety Check)
+Used in `Validator.java` to prevent illegal moves during CPU trial-and-error.
+
+```pseudo
+function isPartiallyValid():
+    // 1. Check all nodes
+    for each node in board:
+        if node.degree > 2:
+            return false // T-junction detected
+            
+    // 2. Check all cells
+    for each cell in board:
+        if cell.countActiveEdges() > cell.getClue():
+            return false // Cell over-filled
+            
+    return true
+```
+
+---
+
+## 8. Algorithm Deep Dive: Complexity & Rationale
+
+This section explains the "Why" and "How" behind the specific algorithms chosen for this implementation.
+
+### A. Timsort (CPU Edge Prioritization)
+*   **Where**: [GameController.java](file:///d:/loopy_java/java_loopy/GameController.java) inside `executeCpuMove`.
+*   **What**: Java's standard `List.sort()` uses **Timsort**, a hybrid of Merge Sort and Insertion Sort.
+*   **Time Complexity**: $O(n \log n)$ average/worst, $O(n)$ best case.
+*   **Implementation**: `unknownEdges.sort(Comparator.comparingInt(this::getEdgePriority).reversed())`.
+*   **Why**: 
+    - **Stability**: Keeps edges with the same priority in their relative order.
+    - **Efficiency**: Specifically optimized for real-world data (like game boards) where subsets of items might already be ordered.
+    - **Purpose**: It ensures the CPU always "guesses" on the most constrained parts of the board (near high clues) first, making it feel smarter and more human-like.
+
+### B. Selection Search (Geometric Hit-Detection)
+*   **Where**: [SlitherlinkApp.java](file:///d:/loopy_java/java_loopy/SlitherlinkApp.java) inside `findEdgeAt`.
+*   **What**: A **Linear Selection** algorithm that finds the absolute minimum value in a set.
+*   **Time Complexity**: $O(E)$ where $E$ is the number of edges.
+*   **Implementation**: It iterates through every edge, calculates the distance from the mouse to the line segment, and tracks the `closestEdge` with the `minDistFound`.
+*   **Why**: 
+    - **Accuracy**: Eliminates "dead zones" between cells. Even if you click 40 pixels away from a line, the algorithm selects the closest one.
+    - **Purpose**: Provides a "snapping" feel to player interaction, making the game feel responsive on both desktop and touch.
+
+### C. Disjoint Set Union (DSU) (Singular Loop Check)
+*   **Where**: [Validator.java](file:///d:/loopy_java/java_loopy/Validator.java) inside `validateFinal`.
+*   **What**: A classic **Union-Find** data structure with path compression.
+*   **Time Complexity**: Nearly $O(E \cdot \alpha(V))$ where $\alpha$ is the Inverse Ackermann function (effectively constant $O(1)$ per operation).
+*   **Implementation**: Iterates through all ACTIVE edges and calls `dsu.union(a, b)`. Finally, it counts how many distinct "roots" contain active nodes.
+*   **Why**: 
+    - **Correctness**: In Slitherlink, you cannot have multiple separate loops ("islands"). DSU is the most efficient way to detect if all active parts are connected into exactly **one** component.
+    - **Purpose**: Power the win-condition logic.
+
+### D. Greedy Constraint Satisfaction
+*   **Where**: [Greedy.java](file:///d:/loopy_java/java_loopy/Greedy.java).
+*   **What**: A **Constraint Satisfaction Algorithm** that applies local forced moves.
+*   **Time Complexity**: $O(C + V)$ where $C$ is cells and $V$ is vertices, per pass.
+*   **Implementation**: Repeatedly applying "Requirement" and "Saturation" rules until no more changes occur.
+*   **Why**: 
+    - **Speed**: It is much faster than backtracking (which is $O(2^E)$).
+    - **Purpose**: It enables the CPU to play "instantly" for 90% of moves without needing complex search trees.
+
