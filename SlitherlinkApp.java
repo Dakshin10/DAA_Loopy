@@ -40,8 +40,7 @@ public class SlitherlinkApp extends JFrame {
     private void initGame() {
         Board board = PuzzleGenerator.generate(5, 5);
         gameController = new GameController(board);
-        board.printAllEdges();
-        board.printNodes();
+        printGraphState();
         solved = false;
         isHumanTurn = true;
 
@@ -50,6 +49,7 @@ public class SlitherlinkApp extends JFrame {
                 try {
                     if (gameController.executeCpuMove()) {
                         checkGameStatus();
+                        printGraphState(); // Print graph details after CPU move
                         gameController.getBoard().printErrors();
                     }
                     isHumanTurn = true;
@@ -63,6 +63,14 @@ public class SlitherlinkApp extends JFrame {
             }
         });
         cpuTimer.setRepeats(false);
+    }
+
+    private void printGraphState() {
+        Board board = gameController.getBoard();
+        System.out.println("\n================ GRAPH STATE UPDATE ================");
+        board.printAllEdges();
+        board.printTopology();
+        System.out.println("====================================================\n");
     }
 
     private void initUI() {
@@ -235,7 +243,8 @@ public class SlitherlinkApp extends JFrame {
 
                 if (gameController.makeHumanMove(target, next)) {
                     checkGameStatus();
-                    board.printErrors(); // Real-time terminal feedback
+                    SlitherlinkApp.this.printGraphState(); // Print graph details after human move
+                    board.printErrors();
                     if (!solved && next == EdgeStatus.ACTIVE) {
                         isHumanTurn = false;
                         updateTurnIndicator();
@@ -462,7 +471,7 @@ public class SlitherlinkApp extends JFrame {
                     System.out.println("Application instance created.");
                     app.setVisible(true);
                     System.out.println("Application window visible.");
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     System.err.println("CRITICAL UI ERROR: " + e.getMessage());
                     e.printStackTrace();
                     System.exit(1);

@@ -13,7 +13,7 @@ public class PuzzleGenerator {
                 // Pure greedy puzzles are rare, so we'll just return the generated loop.
                 System.out.println("Loop generated.");
                 clearEdges(board); // Start with no lines
-                removeClues(board, 30); // Leave about 70% clues for playability
+                removeClues(board, 5); // Leave 95% clues for very easy solving
                 return board;
             }
         }
@@ -21,7 +21,7 @@ public class PuzzleGenerator {
 
     private static boolean generateLoop(Board board) {
         for (Edge e : board.getAllEdges())
-            e.setInactive();
+            e.setUnknown(); // Use UNKNOWN to keep topology connected for the walk
 
         int R = board.rows;
         int C = board.cols;

@@ -86,6 +86,8 @@ public class Board {
                 Edge e = hedge[i][j];
                 if (e != null && e.isActive())
                     System.out.print("---");
+                else if (e != null && e.isInactive())
+                    System.out.print(" X ");
                 else
                     System.out.print("   ");
             }
@@ -95,6 +97,8 @@ public class Board {
                 Edge e = vedge[i][j];
                 if (e != null && e.isActive())
                     System.out.print("|");
+                else if (e != null && e.isInactive())
+                    System.out.print("X");
                 else
                     System.out.print(" ");
 
@@ -106,6 +110,8 @@ public class Board {
             Edge rightEdge = vedge[i][cols];
             if (rightEdge != null && rightEdge.isActive())
                 System.out.println("|");
+            else if (rightEdge != null && rightEdge.isInactive())
+                System.out.println("X");
             else
                 System.out.println(" ");
         }
@@ -115,6 +121,8 @@ public class Board {
             Edge e = hedge[rows][j];
             if (e != null && e.isActive())
                 System.out.print("---");
+            else if (e != null && e.isInactive())
+                System.out.print(" X ");
             else
                 System.out.print("   ");
         }
@@ -136,6 +144,26 @@ public class Board {
             }
             System.out.println();
         }
+    }
+
+    public void printTopology() {
+        System.out.println("\n--- GRAPH TOPOLOGY (Active Loops) ---");
+        for (int i = 0; i <= rows; i++) {
+            for (int j = 0; j <= cols; j++) {
+                Node n = nodes[i][j];
+                List<String> neighborCoords = new ArrayList<>();
+                for (Edge e : n.edges) {
+                    if (e.isActive()) {
+                        Node other = (e.a == n) ? e.b : e.a;
+                        neighborCoords.add(String.format("[%d,%d]", other.row, other.col));
+                    }
+                }
+                if (!neighborCoords.isEmpty()) {
+                    System.out.printf("Node[%d][%d]: %s%n", i, j, String.join(", ", neighborCoords));
+                }
+            }
+        }
+        System.out.println("----------------------------------------\n");
     }
 
     public void printNodes() {

@@ -2,17 +2,32 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Utility to sort edges based on their "importance" for the solver.
- * Uses a QuickSort algorithm as requested.
+ * Utility to sort edges based on their importance.
+ *
+ * Overall Time Complexity: O(E log E) average, O(E²) worst case
+ * Overall Space Complexity: O(log E) average (recursion stack)
+ * where E = number of edges
  */
 public class EdgeSorter {
 
+    /**
+     * Sorts edges using QuickSort.
+     *
+     * Time Complexity: O(E log E) average, O(E²) worst case
+     * Space Complexity: O(log E)
+     */
     public static void sortEdges(List<Edge> edges, Board board) {
         if (edges == null || edges.isEmpty())
             return;
         quickSort(edges, 0, edges.size() - 1, board);
     }
 
+    /**
+     * Recursive QuickSort implementation.
+     *
+     * Time Complexity: O(E log E) average, O(E²) worst case
+     * Space Complexity: O(log E) due to recursion stack
+     */
     private static void quickSort(List<Edge> edges, int low, int high, Board board) {
         if (low < high) {
             int pi = partition(edges, low, high, board);
@@ -21,13 +36,18 @@ public class EdgeSorter {
         }
     }
 
+    /**
+     * Partition step of QuickSort.
+     *
+     * Time Complexity: O(E)
+     * Space Complexity: O(1)
+     */
     private static int partition(List<Edge> edges, int low, int high, Board board) {
         Edge pivot = edges.get(high);
         int pivotScore = getEdgeScore(pivot, board);
         int i = (low - 1);
 
         for (int j = low; j < high; j++) {
-            // Lower score (more important) comes first
             if (getEdgeScore(edges.get(j), board) < pivotScore) {
                 i++;
                 Edge temp = edges.get(i);
@@ -44,50 +64,50 @@ public class EdgeSorter {
     }
 
     /**
-     * Calculates a priority score for an edge.
-     * Edges next to cells with cues (especially 3s and 0s) get lower scores (higher
-     * priority).
+     * Computes importance score for an edge.
+     *
+     * Time Complexity: O(1)
+     * Space Complexity: O(1)
      */
     private static int getEdgeScore(Edge e, Board board) {
-        int score = 100; // Default base score
+        int score = 100;
 
-        // Identify adjacent cells using edge node coordinates
         int r1 = e.a.row, c1 = e.a.col;
         int r2 = e.b.row, c2 = e.b.col;
 
         if (r1 == r2) { // Horizontal edge
             int r = r1;
             int c = Math.min(c1, c2);
-            // Cell above
-            if (r > 0) {
+
+            if (r > 0)
                 score -= getCellCluePriority(board.cells[r - 1][c]);
-            }
-            // Cell below
-            if (r < board.rows) {
+
+            if (r < board.rows)
                 score -= getCellCluePriority(board.cells[r][c]);
-            }
+
         } else { // Vertical edge
             int r = Math.min(r1, r2);
             int c = c1;
-            // Cell to the left
-            if (c > 0) {
+
+            if (c > 0)
                 score -= getCellCluePriority(board.cells[r][c - 1]);
-            }
-            // Cell to the right
-            if (c < board.cols) {
+
+            if (c < board.cols)
                 score -= getCellCluePriority(board.cells[r][c]);
-            }
         }
 
-        // graph-based priority: endpoints with degree 1 are highly likely to be
-        // extended
-        if (e.a.degree == 1 || e.b.degree == 1) {
+        if (e.a.degree == 1 || e.b.degree == 1)
             score -= 30;
-        }
 
         return score;
     }
 
+    /**
+     * Returns priority weight for a cell clue.
+     *
+     * Time Complexity: O(1)
+     * Space Complexity: O(1)
+     */
     private static int getCellCluePriority(Cell cell) {
         if (cell.clue == -1)
             return 0;
