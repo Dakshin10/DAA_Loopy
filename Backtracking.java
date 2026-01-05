@@ -33,7 +33,7 @@ public class Backtracking {
         }
 
         greedy.validator = validator;
-        greedy.applyGreedy(board, solverType);
+        greedy.solve(board);
 
         if (!validator.validatePartial(board)) {
             restore(snapshot);

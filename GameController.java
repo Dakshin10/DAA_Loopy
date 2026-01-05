@@ -25,15 +25,18 @@ public class GameController {
      */
     public boolean executeCpuMove() {
         if (!validator.validatePartial(board)) {
-            // Already in conflict, don't move.
             return false;
         }
 
-        // 1. Try logical deductions (Greedy + Graph)
-        if (greedy.applyOneMove(board, PlayerType.CPU))
-            return true;
-        if (greedy.applyNodeLogic(board, PlayerType.CPU))
-            return true;
+        // Snapshot state to detect changes
+        int initialSetEdges = countSetEdges();
+
+        // 1. Run Greedy Solver (Propagation + Finalization)
+        greedy.solve(board);
+
+        if (countSetEdges() != initialSetEdges) {
+            return true; // Greedy made progress
+        }
 
         // 2. Fallback to Backtracking-lite
         Backtracking solver = new Backtracking();
@@ -43,46 +46,49 @@ public class GameController {
 
         // Hypothesis: Try ACTIVE
         best.setState(EdgeStatus.ACTIVE, PlayerType.CPU);
-        board.printAllEdges();
+        // board.printAllEdges(); // Optional logging
         if (!validator.validatePartial(board)) {
             // Must be INACTIVE. Check if that's valid.
             best.setState(EdgeStatus.INACTIVE, PlayerType.CPU);
-            board.printAllEdges();
             if (validator.validatePartial(board)) {
                 return true;
             } else {
                 best.setState(EdgeStatus.UNKNOWN, PlayerType.NONE);
-                board.printAllEdges();
                 return false;
             }
         }
 
         // Hypothesis: Try INACTIVE
         best.setState(EdgeStatus.INACTIVE, PlayerType.CPU);
-        board.printAllEdges();
         if (!validator.validatePartial(board)) {
-            // Must be ACTIVE. Check if that's valid.
+            // Must be ACTIVE.
             best.setState(EdgeStatus.ACTIVE, PlayerType.CPU);
-            board.printAllEdges();
             if (validator.validatePartial(board)) {
                 return true;
             } else {
                 best.setState(EdgeStatus.UNKNOWN, PlayerType.NONE);
-                board.printAllEdges();
                 return false;
             }
         }
 
         // Proactive guess: ACTIVE
         best.setState(EdgeStatus.ACTIVE, PlayerType.CPU);
-        board.printAllEdges();
         if (validator.validatePartial(board)) {
             return true;
         } else {
             best.setState(EdgeStatus.UNKNOWN, PlayerType.NONE);
-            board.printAllEdges();
             return false;
         }
+    }
+
+    private int countSetEdges() {
+        int count = 0;
+        for (Edge e : board.getAllEdges()) {
+            if (e.getStatus() != EdgeStatus.UNKNOWN) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public boolean solve() {

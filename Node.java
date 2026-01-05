@@ -5,6 +5,7 @@ import java.util.List;
 public class Node {
     public int row, col;
     public int degree;
+    public boolean broken = false;
     public List<Edge> edges;
 
     public Node(int r, int c) {

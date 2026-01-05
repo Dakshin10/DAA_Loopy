@@ -6,6 +6,7 @@ public class Edge {
     public Node a;
     public Node b;
     private EdgeStatus state;
+    public boolean broken = false;
     private PlayerType owner = PlayerType.NONE;
 
     public Edge(Node n1, Node n2) {
