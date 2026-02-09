@@ -11,23 +11,29 @@ public class SlitherlinkApp extends JFrame {
     private static final int DOT_RADIUS = 6; // Slightly larger for better visuals
     private static final int LINE_THICKNESS = 6;
 
-    // Colors
-    private static final Color BG_COLOR = new Color(18, 18, 18);
-    private static final Color PANEL_BG = new Color(30, 30, 30);
-    private static final Color DOT_COLOR = new Color(80, 80, 80);
-    private static final Color HUMAN_COLOR = new Color(255, 235, 59); // Premium Yellow
-    private static final Color CPU_COLOR = new Color(3, 169, 244); // Electric Blue
-    private static final Color INACTIVE_COLOR = new Color(255, 255, 255, 30); // Subtle 'X'
-    private static final Color CLUE_COLOR_DIM = new Color(120, 120, 120);
-    private static final Color CLUE_COLOR_OK = new Color(139, 195, 74); // Vibrant Green
-    private static final Color CLUE_COLOR_ERR = new Color(255, 82, 82); // Vibrant Red
-    private static final Color TEXT_COLOR = new Color(245, 245, 245);
-    private static final String FONT_NAME = Font.SANS_SERIF;
+    // Enhanced Color Palette
+    private static final Color BG_COLOR = new Color(15, 15, 20); // Deeper dark
+    private static final Color PANEL_BG = new Color(25, 25, 35); // Subtle blue tint
+    private static final Color HEADER_BG = new Color(20, 20, 28);
+    private static final Color DOT_COLOR = new Color(90, 90, 100);
+    private static final Color DOT_ACTIVE = new Color(180, 180, 200);
+    private static final Color HUMAN_COLOR = new Color(255, 215, 0); // Gold
+    private static final Color CPU_COLOR = new Color(0, 191, 255); // Deep Sky Blue
+    private static final Color INACTIVE_COLOR = new Color(255, 255, 255, 40);
+    private static final Color CLUE_COLOR_DIM = new Color(130, 130, 140);
+    private static final Color CLUE_COLOR_OK = new Color(76, 175, 80); // Material Green
+    private static final Color CLUE_COLOR_ERR = new Color(244, 67, 54); // Material Red
+    private static final Color TEXT_COLOR = new Color(240, 240, 245);
+    private static final Color ACCENT_PURPLE = new Color(156, 39, 176);
+    private static final Color ACCENT_PINK = new Color(233, 30, 99);
+    private static final String FONT_NAME = "Segoe UI";
 
     private GameController gameController;
     private BoardPanel boardPanel;
     private JLabel statusLabel;
     private JLabel turnLabel;
+    private JPanel instructionsPanel;
+    private boolean instructionsVisible = false;
     private boolean solved = false;
     private boolean isHumanTurn = true;
     private Timer cpuTimer;
@@ -79,24 +85,59 @@ public class SlitherlinkApp extends JFrame {
         getContentPane().setBackground(BG_COLOR);
         setLayout(new BorderLayout(15, 15));
 
-        // Header Panel
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(BG_COLOR);
-        header.setBorder(new EmptyBorder(20, 20, 10, 20));
+        // Header Panel with Gradient
+        JPanel header = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                GradientPaint gradient = new GradientPaint(
+                    0, 0, HEADER_BG,
+                    0, getHeight(), BG_COLOR
+                );
+                g2d.setPaint(gradient);
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+            }
+        };
+        header.setOpaque(false);
+        header.setBorder(new EmptyBorder(20, 25, 15, 25));
 
-        JLabel titleLabel = new JLabel("SLITHERLINK", SwingConstants.LEFT);
-        titleLabel.setFont(new Font(FONT_NAME, Font.BOLD, 28));
+        JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        titlePanel.setOpaque(false);
+        
+        JLabel titleLabel = new JLabel("SLITHERLINK");
+        titleLabel.setFont(new Font(FONT_NAME, Font.BOLD, 30));
         titleLabel.setForeground(Color.WHITE);
-        header.add(titleLabel, BorderLayout.WEST);
+        titlePanel.add(titleLabel);
+        
+        JLabel subtitleLabel = new JLabel("Human vs CPU");
+        subtitleLabel.setFont(new Font(FONT_NAME, Font.PLAIN, 12));
+        subtitleLabel.setForeground(new Color(150, 150, 160));
+        subtitleLabel.setBorder(new EmptyBorder(10, 0, 0, 0));
+        titlePanel.add(subtitleLabel);
+        
+        header.add(titlePanel, BorderLayout.WEST);
 
         turnLabel = new JLabel("YOUR TURN", SwingConstants.RIGHT);
-        turnLabel.setFont(new Font(FONT_NAME, Font.BOLD, 18));
+        turnLabel.setFont(new Font(FONT_NAME, Font.BOLD, 16));
         turnLabel.setForeground(HUMAN_COLOR);
         header.add(turnLabel, BorderLayout.EAST);
         add(header, BorderLayout.NORTH);
 
+        // Center panel with board and instructions
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.setBackground(BG_COLOR);
+        
         boardPanel = new BoardPanel();
-        add(boardPanel, BorderLayout.CENTER);
+        centerPanel.add(boardPanel, BorderLayout.CENTER);
+        
+        // Instructions Panel (collapsible)
+        instructionsPanel = createInstructionsPanel();
+        instructionsPanel.setVisible(false);
+        centerPanel.add(instructionsPanel, BorderLayout.SOUTH);
+        
+        add(centerPanel, BorderLayout.CENTER);
 
         // Footer
         JPanel footer = new JPanel(new BorderLayout(10, 10));
@@ -109,29 +150,39 @@ public class SlitherlinkApp extends JFrame {
         statusLabel.setHorizontalAlignment(SwingConstants.CENTER);
         footer.add(statusLabel, BorderLayout.NORTH);
 
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 0));
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));
         btnPanel.setBackground(BG_COLOR);
 
-        JButton btnNew = createStyledButton("NEW GAME", new Color(103, 58, 183)); // Deep Purple
+        JButton btnNew = createStyledButton("NEW GAME", ACCENT_PURPLE);
         btnNew.addActionListener(e -> {
             initGame();
-            statusLabel.setText("New puzzle generated.");
+            statusLabel.setText("New puzzle generated! Your turn.");
             statusLabel.setForeground(TEXT_COLOR);
             updateTurnIndicator();
             boardPanel.repaint();
         });
 
-        JButton btnHint = createStyledButton("CPU HELP", new Color(255, 64, 129)); // Vivid Magenta
+        JButton btnHint = createStyledButton("CPU HELP", ACCENT_PINK);
         btnHint.addActionListener(e -> {
             if (!solved && isHumanTurn) {
                 isHumanTurn = false;
+                statusLabel.setText("CPU is thinking...");
                 updateTurnIndicator();
                 cpuTimer.start();
             }
         });
+        
+        JButton btnHelp = createStyledButton("RULES", new Color(0, 150, 136));
+        btnHelp.addActionListener(e -> {
+            instructionsVisible = !instructionsVisible;
+            instructionsPanel.setVisible(instructionsVisible);
+            btnHelp.setText(instructionsVisible ? "CLOSE" : "RULES");
+            pack();
+        });
 
         btnPanel.add(btnNew);
         btnPanel.add(btnHint);
+        btnPanel.add(btnHelp);
         footer.add(btnPanel, BorderLayout.CENTER);
 
         add(footer, BorderLayout.SOUTH);
@@ -143,33 +194,97 @@ public class SlitherlinkApp extends JFrame {
 
     private JButton createStyledButton(String text, Color bg) {
         JButton btn = new JButton(text);
-        btn.setFont(new Font(FONT_NAME, Font.BOLD, 13));
+        btn.setFont(new Font(FONT_NAME, Font.BOLD, 12));
         btn.setForeground(Color.WHITE);
         btn.setBackground(bg);
         btn.setFocusPainted(false);
-        btn.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(true);
+        btn.setOpaque(true);
+        btn.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(bg.darker(), 1),
+            BorderFactory.createEmptyBorder(12, 24, 12, 24)
+        ));
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btn.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) {
                 btn.setBackground(bg.brighter());
+                btn.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(bg.brighter(), 2),
+                    BorderFactory.createEmptyBorder(11, 23, 11, 23)
+                ));
             }
 
             public void mouseExited(MouseEvent e) {
                 btn.setBackground(bg);
+                btn.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(bg.darker(), 1),
+                    BorderFactory.createEmptyBorder(12, 24, 12, 24)
+                ));
             }
         });
         return btn;
     }
+    
+    private JPanel createInstructionsPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(PANEL_BG);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(2, 0, 0, 0, new Color(60, 60, 80)),
+            new EmptyBorder(20, 30, 20, 30)
+        ));
+        
+        JLabel title = new JLabel("HOW TO PLAY");
+        title.setFont(new Font(FONT_NAME, Font.BOLD, 16));
+        title.setForeground(TEXT_COLOR);
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(title);
+        
+        panel.add(Box.createVerticalStrut(12));
+        
+        String[] rules = {
+            "OBJECTIVE: Create a single closed loop by connecting dots",
+            "",
+            "CLUES: Numbers (0-3) show how many edges surround that cell",
+            "   - Green = Satisfied  - Red = Violated  - Gray = Incomplete",
+            "",
+            "CONTROLS:",
+            "   - Left Click = Add edge to loop (Yellow)",
+            "   - Right Click = Mark edge as excluded (X)",
+            "   - Click Again = Reset to unknown",
+            "",
+            "WIN CONDITIONS:",
+            "   - All clues satisfied",
+            "   - Each dot has 0 or 2 connections (no T-junctions)",
+            "   - All edges form ONE connected loop",
+            "",
+            "CPU moves are shown in Blue. Use 'CPU HELP' for hints!"
+        };
+        
+        for (String rule : rules) {
+            JLabel label = new JLabel(rule);
+            label.setFont(new Font(FONT_NAME, Font.PLAIN, 12));
+            label.setForeground(rule.isEmpty() ? TEXT_COLOR : new Color(200, 200, 210));
+            label.setAlignmentX(Component.LEFT_ALIGNMENT);
+            panel.add(label);
+            if (!rule.isEmpty()) {
+                panel.add(Box.createVerticalStrut(4));
+            }
+        }
+        
+        return panel;
+    }
 
     private void updateTurnIndicator() {
         if (solved) {
-            turnLabel.setText("O LOOP COMPLETE");
+            turnLabel.setText("LOOP COMPLETE");
             turnLabel.setForeground(CLUE_COLOR_OK);
         } else if (isHumanTurn) {
-            turnLabel.setText("O YOUR TURN");
+            turnLabel.setText("YOUR TURN");
             turnLabel.setForeground(HUMAN_COLOR);
         } else {
-            turnLabel.setText("O CPU THINKING...");
+            turnLabel.setText("CPU THINKING...");
             turnLabel.setForeground(CPU_COLOR);
         }
     }
@@ -177,8 +292,8 @@ public class SlitherlinkApp extends JFrame {
     private void checkGameStatus() {
         if (gameController.isSolved()) {
             solved = true;
-            statusLabel.setText("Victory! The loop is closed.");
-            statusLabel.setForeground(new Color(118, 255, 3));
+            statusLabel.setText("Victory! The loop is closed perfectly!");
+            statusLabel.setForeground(CLUE_COLOR_OK);
             updateTurnIndicator();
             LoopReporter.report(gameController.getBoard());
         }
@@ -391,7 +506,7 @@ public class SlitherlinkApp extends JFrame {
                 }
             }
 
-            // Draw Dots
+            // Draw Dots with enhanced visuals
             for (int i = 0; i <= board.rows; i++) {
                 for (int j = 0; j <= board.cols; j++) {
                     Node node = board.nodes[i][j];
@@ -401,13 +516,25 @@ public class SlitherlinkApp extends JFrame {
                             deg++;
                     }
 
-                    if (deg > 2)
+                    if (deg > 2) {
                         g2d.setColor(CLUE_COLOR_ERR);
-                    else
+                    } else if (deg > 0) {
+                        g2d.setColor(DOT_ACTIVE);
+                    } else {
                         g2d.setColor(DOT_COLOR);
+                    }
 
-                    g2d.fillOval(PADDING + j * CELL_SIZE - DOT_RADIUS, PADDING + i * CELL_SIZE - DOT_RADIUS,
-                            DOT_RADIUS * 2, DOT_RADIUS * 2);
+                    int dotX = PADDING + j * CELL_SIZE - DOT_RADIUS;
+                    int dotY = PADDING + i * CELL_SIZE - DOT_RADIUS;
+                    
+                    // Subtle glow for active dots
+                    if (deg > 0 && deg <= 2) {
+                        g2d.setColor(new Color(180, 180, 200, 30));
+                        g2d.fillOval(dotX - 2, dotY - 2, DOT_RADIUS * 2 + 4, DOT_RADIUS * 2 + 4);
+                        g2d.setColor(DOT_ACTIVE);
+                    }
+                    
+                    g2d.fillOval(dotX, dotY, DOT_RADIUS * 2, DOT_RADIUS * 2);
                 }
             }
         }
