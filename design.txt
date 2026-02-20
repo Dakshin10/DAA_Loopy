@@ -1,0 +1,82 @@
+SLITHERLINK GAME DESIGN DOCUMENT
+==============================
+
+1. SYSTEM ARCHITECTURE
+----------------------
+The system follows a variation of the Model-View-Controller (MVC) pattern:
+
+- **Model**: Represents the puzzle state (Board, Cell, Edge, Node).
+- **View**: Handles rendering and user interaction (SlitherlinkApp, BoardPanel).
+- **Controller**: Manages game flow and AI logic (GameController).
+- **Solver**: Deterministic and heuristic algorithms for solving (Greedy, DivideAndConquerSolver).
+- **Validator**: Enforces game rules (Validator, LoopReporter).
+
+2. DATA STRUCTURES
+------------------
+The board is modeled as a planar graph embedded in a grid.
+
+A. **Nodes (Vertices)**:
+   - Represent grid intersections.
+   - Maintain an adjacency list of connected Edges.
+   - Design logic: Used for "T-junction" detection (Degree Constraint: Node degree must be 0 or 2).
+
+B. **Edges (Links)**:
+   - Represent the lines between nodes.
+   - State: UNKNOWN (Default) | ACTIVE (Line) | INACTIVE (X).
+   - Owned by: HUMAN | CPU | SYSTEM.
+
+C. **Cells (Faces)**:
+   - Represent the squares containing clues (0-3).
+   - contain references to their 4 bounding Edges (Top, Bottom, Left, Right).
+   - Design logic: Drives the local constraint satisfaction (e.g., if Clue=3 and 3 edges are active, 4th must be inactive).
+
+D. **Broad Board State**:
+   - 2D arrays for easy spatial access: `cells[r][c]`, `nodes[r][c]`, `hEdges[r][c]`, `vEdges[r][c]`.
+
+3. ALGORITHMS
+-------------
+
+A. **Greedy Solver (Constraint Propagation)**
+   - **Purpose**: Fast, deterministic deduction of edges based on local constraints.
+   - **Approach**: Iteratively applies rules until no new changes occur.
+   - **Rules**:
+     1. *Saturation*: If Active Edges count == Clue -> Set remaining Unknowns to INACTIVE.
+     2. *Requirement*: If Active + Unknown count == Clue -> Set all Unknowns to ACTIVE.
+   - **Complexity**: O(N) per pass, efficient for "easy" moves.
+
+B. **Divide and Conquer Solver (Backtracking)**
+   - **Purpose**: Solves complex board states where greedy logic stalls.
+   - **Approach**:
+     1. *Divide*: Select a "Pivot" edge that is currently UNKNOWN (Heuristic: Choose edge near satisfied clues or random).
+     2. *Conquer*:
+        - Branch A: Assume Pivot is ACTIVE.
+        - Branch B: Assume Pivot is INACTIVE.
+     3. *Propagate*: For each branch, run the **Greedy Solver** to deduce consequences.
+     4. *Validate*: If a branch leads to an invalid state (Violation), prune it (Backtrack).
+     5. *Combine*: If a branch creates a fully solved valid board, return Success.
+
+C. **Disjoint Set Union (DSU) / Union-Find**
+   - **Purpose**: Validating the "Single Loop" constraint.
+   - **Logic**: 
+     - Initialize each Node as a separate set.
+     - For every ACTIVE edge, Union the sets of its two Nodes.
+     - At the end, count strict Root sets.
+     - Valid Loop: Exactly 1 set exists containing all active nodes.
+
+D. **Puzzle Generation**
+   - **Algorithm**: Randomized Self-Avoiding Walk.
+   - **Process**:
+     1. Start at a random Node.
+     2. Randomly walk to a neighbor not yet visited (maintaining single loop invariant).
+     3. Close the loop randomly.
+     4. Calculate clues based on the generated loop.
+     5. Obfuscate (Remove Random Clues) to create difficulty.
+
+E. **Geometric Interaction**
+   - Mouse clicks map to edges using specialized distance formulas for horizontal/vertical segments to ensure "Perfect Click" detection without dead zones.
+
+4. DESIGN CHOICES
+-----------------
+- **Separation of Concerns**: The `Greedy` logic is decoupled from the `DivideAndConquer` recursion. The recursive solver *uses* the greedy solver as a subroutine to reduce the search space.
+- **Fail-Fast Validation**: Used during the recursive step. If `Validator.validatePartial()` fails, we stop immediately, avoiding wasting cycles on broken branches.
+- **State Restoration**: The solver uses a transaction-like log (`List<Edge> log`) to record changes made during a recursive step, allowing precise rollback (Backtracking) when a branch fails.
