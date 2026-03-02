@@ -1,82 +1,42 @@
-SLITHERLINK GAME DESIGN DOCUMENT
-==============================
+# Slitherlink Game Design Document
 
-1. SYSTEM ARCHITECTURE
-----------------------
-The system follows a variation of the Model-View-Controller (MVC) pattern:
+## 1. Game Workflow (MVC Architecture)
 
-- **Model**: Represents the puzzle state (Board, Cell, Edge, Node).
-- **View**: Handles rendering and user interaction (SlitherlinkApp, BoardPanel).
-- **Controller**: Manages game flow and AI logic (GameController).
-- **Solver**: Deterministic and heuristic algorithms for solving (Greedy, DivideAndConquerSolver).
-- **Validator**: Enforces game rules (Validator, LoopReporter).
+The application follows a Model-View-Controller (MVC) design pattern to ensure modularity and separation of concerns.
 
-2. DATA STRUCTURES
-------------------
-The board is modeled as a planar graph embedded in a grid.
+- **Model**: 
+    - `Board.java`: Maintains the grid of `Cell`s, `Node`s, and `Edge`s.
+    - `Cell.java`: Represents a square in the grid and holds the clue (0-3).
+    - `Edge.java`: Represents the boundary between nodes; can be ACTIVE, INACTIVE, or UNKNOWN.
+    - `Node.java`: Grid intersections where edges meet.
+- **View**:
+    - `SlitherlinkApp.java`: The primary Swing GUI. It handles rendering the board, mouse interactions, and animations for CPU moves.
+- **Controller**:
+    - `GameController.java`: Orchestrates the interaction between the UI and the underlying logic (Solver and Validator).
+- **Engine**:
+    - `DPSolver.java`: The core Profile Dynamic Programming engine that calculates the solution.
+    - `Validator.java`: Ensures moves follow the rules (node degree <= 2, clues satisfied, single loop).
 
-A. **Nodes (Vertices)**:
-   - Represent grid intersections.
-   - Maintain an adjacency list of connected Edges.
-   - Design logic: Used for "T-junction" detection (Degree Constraint: Node degree must be 0 or 2).
+## 2. Solution Strategy: Profile Dynamic Programming
 
-B. **Edges (Links)**:
-   - Represent the lines between nodes.
-   - State: UNKNOWN (Default) | ACTIVE (Line) | INACTIVE (X).
-   - Owned by: HUMAN | CPU | SYSTEM.
+The game uses a **Profile DP (Broken Line)** approach to solve the Slitherlink puzzle. This is an advanced technique for solving grid-based connectivity problems.
 
-C. **Cells (Faces)**:
-   - Represent the squares containing clues (0-3).
-   - contain references to their 4 bounding Edges (Top, Bottom, Left, Right).
-   - Design logic: Drives the local constraint satisfaction (e.g., if Clue=3 and 3 edges are active, 4th must be inactive).
+### Core Concepts:
+1. **Broken Line Contour**: Instead of processing the board row-by-row, the solver moves **node-by-node** (top-to-bottom, left-to-right). This is known as "Broken Line" DP because the boundary between processed and unprocessed parts of the grid is a jagged line.
+2. **State Encoding**: 
+    - The connectivity of path segments crossing the current contour is stored as a **bracket representation** (0: no edge, 1: left bracket '(', 2: right bracket ')').
+    - This allows the solver to distinguish between different connected components and prevent premature loop closures.
+    - Cell partial sums (how many edges are currently active for a specific cell) are also tracked in the state.
+3. **State Compression**: All relevant information (connectivity, cell sums, loop closure flag) is packed into a single **64-bit long** for extremely fast lookups and low memory overhead.
 
-D. **Broad Board State**:
-   - 2D arrays for easy spatial access: `cells[r][c]`, `nodes[r][c]`, `hEdges[r][c]`, `vEdges[r][c]`.
+### Transition Logic:
+For each node `(r, c)`, the solver considers the state of the incoming horizontal edge (from the left) and vertical edge (from the top). It then makes a decision for the outgoing horizontal (to the right) and vertical (downward) edges:
+- **Degree Constraint**: The total number of active edges at the node must be exactly 0 or 2.
+- **Connectivity Merge**: 
+    - If two path segments meet, the brackets are merged.
+    - If a single path segment arrives, it can be extended in either direction.
+    - If two segments of the same component meet, a loop is closed (only allowed if it's the final loop).
+- **Clue Verification**: As soon as a cell's bottom and right edges are decided, the solver verifies if the total number of active edges matches the clue.
 
-3. ALGORITHMS
--------------
-
-A. **Greedy Solver (Constraint Propagation)**
-   - **Purpose**: Fast, deterministic deduction of edges based on local constraints.
-   - **Approach**: Iteratively applies rules until no new changes occur.
-   - **Rules**:
-     1. *Saturation*: If Active Edges count == Clue -> Set remaining Unknowns to INACTIVE.
-     2. *Requirement*: If Active + Unknown count == Clue -> Set all Unknowns to ACTIVE.
-   - **Complexity**: O(N) per pass, efficient for "easy" moves.
-
-B. **Divide and Conquer Solver (Backtracking)**
-   - **Purpose**: Solves complex board states where greedy logic stalls.
-   - **Approach**:
-     1. *Divide*: Select a "Pivot" edge that is currently UNKNOWN (Heuristic: Choose edge near satisfied clues or random).
-     2. *Conquer*:
-        - Branch A: Assume Pivot is ACTIVE.
-        - Branch B: Assume Pivot is INACTIVE.
-     3. *Propagate*: For each branch, run the **Greedy Solver** to deduce consequences.
-     4. *Validate*: If a branch leads to an invalid state (Violation), prune it (Backtrack).
-     5. *Combine*: If a branch creates a fully solved valid board, return Success.
-
-C. **Disjoint Set Union (DSU) / Union-Find**
-   - **Purpose**: Validating the "Single Loop" constraint.
-   - **Logic**: 
-     - Initialize each Node as a separate set.
-     - For every ACTIVE edge, Union the sets of its two Nodes.
-     - At the end, count strict Root sets.
-     - Valid Loop: Exactly 1 set exists containing all active nodes.
-
-D. **Puzzle Generation**
-   - **Algorithm**: Randomized Self-Avoiding Walk.
-   - **Process**:
-     1. Start at a random Node.
-     2. Randomly walk to a neighbor not yet visited (maintaining single loop invariant).
-     3. Close the loop randomly.
-     4. Calculate clues based on the generated loop.
-     5. Obfuscate (Remove Random Clues) to create difficulty.
-
-E. **Geometric Interaction**
-   - Mouse clicks map to edges using specialized distance formulas for horizontal/vertical segments to ensure "Perfect Click" detection without dead zones.
-
-4. DESIGN CHOICES
------------------
-- **Separation of Concerns**: The `Greedy` logic is decoupled from the `DivideAndConquer` recursion. The recursive solver *uses* the greedy solver as a subroutine to reduce the search space.
-- **Fail-Fast Validation**: Used during the recursive step. If `Validator.validatePartial()` fails, we stop immediately, avoiding wasting cycles on broken branches.
-- **State Restoration**: The solver uses a transaction-like log (`List<Edge> log`) to record changes made during a recursive step, allowing precise rollback (Backtracking) when a branch fails.
+### Path Reconstruction:
+Once the solver reaches the end of the grid and finds a state with a closed loop and all constraints satisfied, it uses a **backtracking map** (storing parent pointers for each state transition) to reconstruct the exact states of all edges and applies them to the `Board` object.

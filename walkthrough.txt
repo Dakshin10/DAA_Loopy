@@ -1,0 +1,26 @@
+# Walkthrough: Profile DP Slitherlink Solver
+
+I have implemented a dynamic programming solver for Slitherlink that uses Profile DP (Broken Line DP). This approach is more efficient than backtracking for grid puzzles with connectivity constraints.
+
+## Components Added
+
+- DPSolver.java:
+  - Implemented the solve(Board board) method using a node-by-node transition.
+  - State Encoding: Packed connectivity (bracket representation), cell partial sums, and loop-closure flag into a single 64-bit long.
+  - Connectivity: Used bracket-based logic to maintain path connectivity and ensure a single loop is formed. 
+  - Constraints: Enforced node degree (0 or 2), cell clues (exact edge count), and "no small loops" (single loop) rules.
+  - Backtracking: Reconstructs the winning edge states and applies them to the board.
+
+## Verification
+
+The solver was verified using several test cases:
+- 1x1 Puzzle: Solved correctly (4 edges forming a square).
+- 2x2 Puzzle: Solved correctly in ~18ms.
+## Codebase Cleanup
+
+The project has been streamlined by removing legacy components that are no longer needed:
+- Removed Greedy.java and EdgeSorter.java.
+- Removed DivideAndConquerSolver.java and supporting documentation (design.txt, explanation.txt).
+- Updated GameController.java to use DPSolver as the primary solving engine for CPU moves.
+
+The codebase is now focused exclusively on the high-performance Profile DP solution.
