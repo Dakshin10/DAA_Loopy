@@ -3,8 +3,7 @@ import java.util.*;
 public class HybridDPSolver {
     private Board board;
     private int R, C;
-    private boolean[][] visited;
-    private int[] hMasks;
+    private boolean[][][] visited;
     private Validator validator = new Validator();
 
     public boolean solve(Board board) {
@@ -17,16 +16,23 @@ public class HybridDPSolver {
             return false;
         }
 
-        this.visited = new boolean[R + 1][1 << (C + 1)];
-        this.hMasks = new int[R + 1];
+        // State: [row][incomingVerticalMask][previousHorizontalMask]
+        this.visited = new boolean[R + 1][1 << (C + 1)][1 << C];
 
         resetBoard();
 
-        return dfs(0, 0);
+        long start = System.currentTimeMillis();
+        boolean res = dfs(0, 0, 0);
+        long end = System.currentTimeMillis();
+
+        if (res) {
+            System.out.println("HybridDPSolver: Solution found in " + (end - start) + "ms.");
+        }
+        return res;
     }
 
-    private boolean dfs(int row, int vMask) {
-        if (visited[row][vMask])
+    private boolean dfs(int row, int vMask, int prevHMask) {
+        if (visited[row][vMask][prevHMask])
             return false;
 
         if (row == R) {
@@ -35,7 +41,7 @@ public class HybridDPSolver {
                     continue;
                 if (!checkLastNodeRow(vMask, hr))
                     continue;
-                if (!checkCells(R - 1, hMasks[R - 1], hr, vMask))
+                if (!checkCells(R - 1, prevHMask, hr, vMask))
                     continue;
 
                 applyHedges(R, hr);
@@ -43,7 +49,7 @@ public class HybridDPSolver {
                     return true;
                 undoHedges(R);
             }
-            visited[row][vMask] = true;
+            visited[row][vMask][prevHMask] = true;
             return false;
         }
 
@@ -57,19 +63,16 @@ public class HybridDPSolver {
             if (!matchVedge(row, nextVMask))
                 continue;
 
-            if (row > 0 && !checkCells(row - 1, hMasks[row - 1], hr, vMask))
+            if (row > 0 && !checkCells(row - 1, prevHMask, hr, vMask))
                 continue;
 
-            hMasks[row] = hr;
             applyRow(row, hr, nextVMask);
-
-            if (dfs(row + 1, nextVMask))
+            if (dfs(row + 1, nextVMask, hr))
                 return true;
-
             undoRow(row);
         }
 
-        visited[row][vMask] = true;
+        visited[row][vMask][prevHMask] = true;
         return false;
     }
 
@@ -171,12 +174,12 @@ public class HybridDPSolver {
     private void undoRow(int r) {
         for (int c = 0; c < C; c++) {
             Edge e = board.hedge[r][c];
-            if (e.getOwner() == PlayerType.CPU)
+            if (e.getOwner() != PlayerType.HUMAN)
                 e.setUnknown();
         }
         for (int c = 0; c <= C; c++) {
             Edge e = board.vedge[r][c];
-            if (e.getOwner() == PlayerType.CPU)
+            if (e.getOwner() != PlayerType.HUMAN)
                 e.setUnknown();
         }
     }
@@ -196,14 +199,14 @@ public class HybridDPSolver {
     private void undoHedges(int r) {
         for (int c = 0; c < C; c++) {
             Edge e = board.hedge[r][c];
-            if (e.getOwner() == PlayerType.CPU)
+            if (e.getOwner() != PlayerType.HUMAN)
                 e.setUnknown();
         }
     }
 
     private void resetBoard() {
         for (Edge e : board.getAllEdges()) {
-            if (e.getOwner() == PlayerType.CPU)
+            if (e.getOwner() != PlayerType.HUMAN)
                 e.setUnknown();
         }
     }
