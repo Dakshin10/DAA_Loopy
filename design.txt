@@ -1,42 +1,40 @@
 # Slitherlink Game Design Document
 
-## 1. Game Workflow (MVC Architecture)
+## 1. Game Flow
+Slitherlink is a logic puzzle where the player connects dots to form a single continuous loop.
+- **Initialization**: A grid of dots is generated with clues (0-3).
+- **Player Input**: Human player toggles edges between `ACTIVE`, `INACTIVE`, and `UNKNOWN`.
+- **CPU Turn**: Invokes `HybridDPSolver` to complete the loop.
+- **Validation**:
+  - `validatePartial`: Checks local constraints (degree <= 2, clues not exceeded).
+  - `validateFinal`: Checks global constraints (all clues met, single connected loop).
 
-The application follows a Model-View-Controller (MVC) design pattern to ensure modularity and separation of concerns.
+## 2. Solution Strategy: Hybrid DP + Backtracking
+The solver uses a **Top-Down Memoized Row Bitmask DP** approach.
 
-- **Model**: 
-    - `Board.java`: Maintains the grid of `Cell`s, `Node`s, and `Edge`s.
-    - `Cell.java`: Represents a square in the grid and holds the clue (0-3).
-    - `Edge.java`: Represents the boundary between nodes; can be ACTIVE, INACTIVE, or UNKNOWN.
-    - `Node.java`: Grid intersections where edges meet.
-- **View**:
-    - `SlitherlinkApp.java`: The primary Swing GUI. It handles rendering the board, mouse interactions, and animations for CPU moves.
-- **Controller**:
-    - `GameController.java`: Orchestrates the interaction between the UI and the underlying logic (Solver and Validator).
-- **Engine**:
-    - `DPSolver.java`: The core Profile Dynamic Programming engine that calculates the solution.
-    - `Validator.java`: Ensures moves follow the rules (node degree <= 2, clues satisfied, single loop).
+### Recursive Search (DFS)
+- The solver explores the board's edge configurations using Depth-First Search.
+- **State**: `dfs(row, vMask)`
+  - `row`: The current node-row being processed.
+  - `vMask`: A bitmask representing vertical edges entering the current row from above.
 
-## 2. Solution Strategy: Profile Dynamic Programming
+### Memoization
+- A 2D array `visited[R+1][1 << (C+1)]` stores whether a particular `(row, vMask)` state has already been explored and failed to find a solution.
+- This prevents redundant computation of subproblems.
 
-The game uses a **Profile DP (Broken Line)** approach to solve the Slitherlink puzzle. This is an advanced technique for solving grid-based connectivity problems.
+### Backtracking
+- Edge assignments are made directly on the `Board` for each row configuration (`hMask` and `vMask`).
+- If a recursive call returns `false`, the edges are reset to `UNKNOWN` before trying the next configuration.
 
-### Core Concepts:
-1. **Broken Line Contour**: Instead of processing the board row-by-row, the solver moves **node-by-node** (top-to-bottom, left-to-right). This is known as "Broken Line" DP because the boundary between processed and unprocessed parts of the grid is a jagged line.
-2. **State Encoding**: 
-    - The connectivity of path segments crossing the current contour is stored as a **bracket representation** (0: no edge, 1: left bracket '(', 2: right bracket ')').
-    - This allows the solver to distinguish between different connected components and prevent premature loop closures.
-    - Cell partial sums (how many edges are currently active for a specific cell) are also tracked in the state.
-3. **State Compression**: All relevant information (connectivity, cell sums, loop closure flag) is packed into a single **64-bit long** for extremely fast lookups and low memory overhead.
+### Constraints
+- **Node Degrees**: For each node, `v_in + h_left + h_right + v_out` must be 0 or 2. This allows dertmining `v_out` (the mask for the next row) from the inputs.
+- **Cells**: For each cell, the sum of its four surrounding edges must match the clue.
+- **Manual Placements**: The solver respects `ACTIVE` and `INACTIVE` edges placed by the player.
 
-### Transition Logic:
-For each node `(r, c)`, the solver considers the state of the incoming horizontal edge (from the left) and vertical edge (from the top). It then makes a decision for the outgoing horizontal (to the right) and vertical (downward) edges:
-- **Degree Constraint**: The total number of active edges at the node must be exactly 0 or 2.
-- **Connectivity Merge**: 
-    - If two path segments meet, the brackets are merged.
-    - If a single path segment arrives, it can be extended in either direction.
-    - If two segments of the same component meet, a loop is closed (only allowed if it's the final loop).
-- **Clue Verification**: As soon as a cell's bottom and right edges are decided, the solver verifies if the total number of active edges matches the clue.
+### Final Verification
+- Upon reaching the end of the grid, `validator.validateFinal(board)` is called to ensure the single loop property.
 
-### Path Reconstruction:
-Once the solver reaches the end of the grid and finds a state with a closed loop and all constraints satisfied, it uses a **backtracking map** (storing parent pointers for each state transition) to reconstruct the exact states of all edges and applies them to the `Board` object.
+## 3. Architecture (MVC)
+- **Model**: `Board`, `Cell`, `Edge`, `Node`.
+- **View**: `SlitherlinkApp` (Java Swing UI).
+- **Controller**: `GameController` - bridges UI input with logic and the solver.

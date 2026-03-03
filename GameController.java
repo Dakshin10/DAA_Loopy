@@ -2,7 +2,7 @@
 public class GameController {
     private Board board;
     private Validator validator = new Validator();
-    private DPSolver dpSolver = new DPSolver();
+    private HybridDPSolver dpSolver = new HybridDPSolver();
 
     public GameController(Board b) {
         this.board = b;
