@@ -22,6 +22,7 @@ public class Edge {
         // Logic for Graph Topology:
         // If we are moving TO Inactive, we break the graph connection.
         // If we are moving FROM Inactive (to Unknown/Active), we restore it.
+        
         if (newState == EdgeStatus.INACTIVE) {
             removeFromNodes();
         } else if (state == EdgeStatus.INACTIVE) {
