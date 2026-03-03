@@ -149,38 +149,56 @@ public class HybridDPSolver {
 
     private void applyRow(int r, int hMask, int vMask) {
         for (int c = 0; c < C; c++) {
+            Edge e = board.hedge[r][c];
+            if (e.getOwner() == PlayerType.HUMAN)
+                continue;
             if (((hMask >> c) & 1) == 1)
-                board.hedge[r][c].setActive(PlayerType.CPU);
+                e.setActive(PlayerType.CPU);
             else
-                board.hedge[r][c].setInactive();
+                e.setInactive();
         }
         for (int c = 0; c <= C; c++) {
+            Edge e = board.vedge[r][c];
+            if (e.getOwner() == PlayerType.HUMAN)
+                continue;
             if (((vMask >> c) & 1) == 1)
-                board.vedge[r][c].setActive(PlayerType.CPU);
+                e.setActive(PlayerType.CPU);
             else
-                board.vedge[r][c].setInactive();
+                e.setInactive();
         }
     }
 
     private void undoRow(int r) {
-        for (int c = 0; c < C; c++)
-            board.hedge[r][c].setUnknown();
-        for (int c = 0; c <= C; c++)
-            board.vedge[r][c].setUnknown();
+        for (int c = 0; c < C; c++) {
+            Edge e = board.hedge[r][c];
+            if (e.getOwner() == PlayerType.CPU)
+                e.setUnknown();
+        }
+        for (int c = 0; c <= C; c++) {
+            Edge e = board.vedge[r][c];
+            if (e.getOwner() == PlayerType.CPU)
+                e.setUnknown();
+        }
     }
 
     private void applyHedges(int r, int hMask) {
         for (int c = 0; c < C; c++) {
+            Edge e = board.hedge[r][c];
+            if (e.getOwner() == PlayerType.HUMAN)
+                continue;
             if (((hMask >> c) & 1) == 1)
-                board.hedge[r][c].setActive(PlayerType.CPU);
+                e.setActive(PlayerType.CPU);
             else
-                board.hedge[r][c].setInactive();
+                e.setInactive();
         }
     }
 
     private void undoHedges(int r) {
-        for (int c = 0; c < C; c++)
-            board.hedge[r][c].setUnknown();
+        for (int c = 0; c < C; c++) {
+            Edge e = board.hedge[r][c];
+            if (e.getOwner() == PlayerType.CPU)
+                e.setUnknown();
+        }
     }
 
     private void resetBoard() {

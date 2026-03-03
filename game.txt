@@ -1,0 +1,30 @@
+# Slitherlink Game Documentation
+
+## 1. Game Flow
+Slitherlink is a logic puzzle played on a rectangular grid of dots.
+- **Goal**: Connect adjacent dots with vertical or horizontal lines to form a single, continuous, non-intersecting loop.
+- **Clues**: Some cells in the grid contain a number (0 to 3). This number indicates how many of the four edges surrounding that cell must be part of the loop.
+- **Controls**:
+  - **Left Click**: Toggles an edge as `ACTIVE` (part of the loop).
+  - **Right Click**: Toggles an edge as `INACTIVE` (marked with an 'X' to indicate it cannot be part of the loop).
+  - **CPU HELP**: Invokes the automated solver to find a valid completion of the loop based on current placements.
+- **Victory Conditions**: 
+  - Every dot (node) in the loop has exactly two connections.
+  - All cell clues are satisfied.
+  - All active edges form exactly one single connected loop (no separate "islands").
+
+## 2. Algorithm: Hybrid DP + Backtracking
+The solver uses a **Top-Down Memoized Row Bitmask Dynamic Programming** approach.
+
+### State Representation
+The state is defined by the function `dfs(row, vMask)`:
+- `row`: The current horizontal row of dots being processed.
+- `vMask`: A bitmask encoding the vertical edges entering the current row from above.
+
+### Core Logic
+1. **Recursive Exploration**: The solver uses Depth-First Search (DFS) to find a combination of horizontal and vertical edges that satisfy all local constraints.
+2. **Transition**: For each row, the solver tries all valid configurations of horizontal edges (`hMask`).
+3. **Determining Next State**: Based on the incoming vertical edges (`vMask`) and the chosen horizontal edges, the rule that every node must have degree 0 or 2 dictates what the vertical edges going *down* to the next row must be.
+4. **Memoization**: To optimize, the solver stores visited states `(row, vMask)`. If a state is revisited and has already failed to produce a solution, the solver backtracks immediately.
+5. **Backtracking**: The solver sets edge states on the board to explore a path. If the path fails, it reverts those edges to `UNKNOWN` and tries a different configuration.
+6. **Final Validation**: When the last row is reached, the solver calls `validator.validateFinal(board)` to confirm that all edges form a single continuous loop.

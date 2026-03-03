@@ -19,41 +19,13 @@ public class Edge {
         if (newState == state)
             return;
 
-        // Logic for Graph Topology:
-        // If we are moving TO Inactive, we break the graph connection.
-        // If we are moving FROM Inactive (to Unknown/Active), we restore it.
-        
-        if (newState == EdgeStatus.INACTIVE) {
-            removeFromNodes();
-        } else if (state == EdgeStatus.INACTIVE) {
-            addToNodes();
-        }
-
-        state = newState;
-        if (state == EdgeStatus.ACTIVE) {
-            this.owner = player;
-            // degree update is now redundant if we are using list size,
-            // but we keep it for now if logic depends explicitly on this field.
-            a.degree++;
-            b.degree++;
-        } else if (state == EdgeStatus.INACTIVE) {
-            // No owner for inactive
-            this.owner = PlayerType.NONE;
+        if (newState == EdgeStatus.ACTIVE) {
+            setActive(player);
+        } else if (newState == EdgeStatus.INACTIVE) {
+            setInactive();
         } else {
-            // UNKNOWN
-            this.owner = PlayerType.NONE;
+            setUnknown();
         }
-
-        // Fix degree counts from previous state
-        // If we were ACTIVE before, we need to decrement
-        // (Note: We handle the transition logic carefully here)
-        // Wait, the previous logic was simpler but didn't handle topology.
-        // Let's rely on a cleaner degree management.
-        // Re-calibrating degree variable to match Active count only.
-        // Actually, let's keep the manual degree management from before for safety
-        // but it might be better to make degree a calculated property?
-        // For minimal breakage, let's stick to the previous pattern BUT
-        // wrap the topology change.
     }
 
     // Rewrite of the specific methods to encompass both Degree and Topology
