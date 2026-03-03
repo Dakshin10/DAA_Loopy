@@ -65,6 +65,22 @@ public class DPSolver {
                             boolean v_out = (v_out_bit == 1 && r < R);
                             boolean h_out = (h_out_bit == 1 && c < C);
 
+                            // Respect existing board state
+                            if (r < R) {
+                                Edge ve = board.vedge[r][c];
+                                if (ve.getStatus() == EdgeStatus.ACTIVE && !v_out)
+                                    continue;
+                                if (ve.getStatus() == EdgeStatus.INACTIVE && v_out)
+                                    continue;
+                            }
+                            if (c < C) {
+                                Edge he = board.hedge[r][c];
+                                if (he.getStatus() == EdgeStatus.ACTIVE && !h_out)
+                                    continue;
+                                if (he.getStatus() == EdgeStatus.INACTIVE && h_out)
+                                    continue;
+                            }
+
                             int deg = (s_c != 0 ? 1 : 0) + (s_c1 != 0 ? 1 : 0) + (v_out ? 1 : 0) + (h_out ? 1 : 0);
                             if (deg != 0 && deg != 2)
                                 continue;

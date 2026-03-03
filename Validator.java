@@ -7,6 +7,10 @@ class DisjointSet {
     public Map<Node, Integer> rank = new HashMap<>();
 
     public Node findParent(Node x) {
+        if (!parent.containsKey(x)) {
+            start(x);
+            return x;
+        }
         if (parent.get(x) != x) {
             parent.put(x, findParent(parent.get(x)));
         }
@@ -115,7 +119,6 @@ public class Validator {
             if (e.isActive())
                 activeEdgeCount++;
         }
-        System.out.println("activeEdgeCount: " + activeEdgeCount);
 
         for (Node[] row : board.nodes) {
             for (Node node : row) {

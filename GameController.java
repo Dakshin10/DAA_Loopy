@@ -13,7 +13,15 @@ public class GameController {
     }
 
     public boolean makeMove(Edge e, EdgeStatus newState, PlayerType player) {
+        EdgeStatus oldState = e.getStatus();
         e.setState(newState, player);
+
+        if (!validator.validatePartial(board)) {
+            // Revert illegal move
+            e.setState(oldState, PlayerType.NONE);
+            return false;
+        }
+
         board.printAllEdges();
         return true;
     }
