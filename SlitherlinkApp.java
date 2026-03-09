@@ -53,7 +53,7 @@ public class SlitherlinkApp extends JFrame {
         cpuTimer = new Timer(1000, e -> {
             if (!solved && !isHumanTurn) {
                 try {
-                    if (gameController.executeCpuMove()) {
+                    if (gameController.cpuSingleMove()) {
                         checkGameStatus();
                         printGraphState(); // Print graph details after CPU move
                         gameController.getBoard().printErrors();
@@ -130,7 +130,13 @@ public class SlitherlinkApp extends JFrame {
         centerPanel.setBackground(BG_COLOR);
         
         boardPanel = new BoardPanel();
-        centerPanel.add(boardPanel, BorderLayout.CENTER);
+        
+        // Wrap boardPanel in GridBagLayout to center it when resizing
+        JPanel boardWrapper = new JPanel(new GridBagLayout());
+        boardWrapper.setOpaque(false);
+        boardWrapper.add(boardPanel);
+        
+        centerPanel.add(boardWrapper, BorderLayout.CENTER);
         
         // Instructions Panel (collapsible)
         instructionsPanel = createInstructionsPanel();
@@ -180,8 +186,29 @@ public class SlitherlinkApp extends JFrame {
             pack();
         });
 
+        JButton btnSolve = createStyledButton("SOLVE PUZZLE", CPU_COLOR);
+        btnSolve.addActionListener(e -> {
+            if (!solved) {
+                isHumanTurn = false;
+                statusLabel.setText("Solving puzzle...");
+                updateTurnIndicator();
+                
+                // execute full solve
+                if (gameController.executeFullSolve()) {
+                    checkGameStatus();
+                    printGraphState();
+                    gameController.getBoard().printErrors();
+                } else {
+                    statusLabel.setText("No solution possible from current state.");
+                    statusLabel.setForeground(CLUE_COLOR_ERR);
+                }
+                boardPanel.repaint();
+            }
+        });
+
         btnPanel.add(btnNew);
         btnPanel.add(btnHint);
+        btnPanel.add(btnSolve);
         btnPanel.add(btnHelp);
         footer.add(btnPanel, BorderLayout.CENTER);
 
@@ -259,7 +286,7 @@ public class SlitherlinkApp extends JFrame {
             "   - Each dot has 0 or 2 connections (no T-junctions)",
             "   - All edges form ONE connected loop",
             "",
-            "CPU moves are shown in Blue. Use 'CPU HELP' for hints!"
+            "CPU moves are shown in Blue. Use 'CPU HELP' for hints or 'SOLVE PUZZLE' to finish!"
         };
         
         for (String rule : rules) {
