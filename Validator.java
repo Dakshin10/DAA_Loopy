@@ -1,6 +1,5 @@
 
 import java.util.*;
-import java.util.Scanner;
 
 class DisjointSet {
     public Map<Node, Node> parent = new HashMap<>();
@@ -38,112 +37,110 @@ class DisjointSet {
     }
 }
 
+/**
+ * Validates the board state using graph-based algorithms.
+ * All validation uses graph traversal, not array iteration.
+ */
 public class Validator {
+    
+    /**
+     * Validates partial state (during gameplay).
+     * Checks node degrees, face constraints, and prevents small loops.
+     */
     public boolean validatePartial(Board board) {
-        return validateNodeDegree(board) && validateCells(board) && noSmallLoops(board);
+        return validateNodeDegree(board) && validateFaces(board) && noSmallLoops(board);
     }
 
+    /**
+     * Validates final state (win condition).
+     * Checks node degrees, exact face satisfaction, and single loop.
+     */
     public boolean validateFinal(Board board) {
         if (!validateNodeDegree(board))
             return false;
-        if (!validateCellExact(board))
+        if (!validateFaceExact(board))
             return false;
         return singleLoop(board);
     }
 
+    /**
+     * Checks that all nodes have degree 0 or 2 (no T-junctions).
+     */
     private boolean validateNodeDegree(Board board) {
-        for (Node[] row : board.nodes) {
-            for (Node node : row) {
-                int degree = 0;
-                for (Edge e : node.edges) {
-                    if (e.isActive())
-                        degree++;
-                }
-                if (degree > 2)
-                    return false;
-            }
+        for (Node node : board.getNodes()) {
+            int degree = node.getActiveDegree();
+            if (degree > 2)
+                return false;
         }
         return true;
     }
 
-    private boolean validateCells(Board board) {
-        for (Cell[] row : board.cells) {
-            for (Cell cell : row) {
-                if (cell.clue < 0)
-                    continue;
-
-                int active = 0, unknown = 0;
-                Edge[] edges = { cell.top, cell.bottom, cell.left, cell.right };
-
-                for (Edge e : edges) {
-                    if (e != null) {
-                        if (e.isActive())
-                            active++;
-                        else if (e.isUnknown())
-                            unknown++;
-                    }
-                }
-
-                if (active > cell.clue)
-                    return false;
-                if (active + unknown < cell.clue)
-                    return false;
-            }
+    /**
+     * Checks that no face constraint is violated.
+     * A face is violated if:
+     * - Active edges > clue
+     * - Active + unknown < clue (impossible to satisfy)
+     */
+    private boolean validateFaces(Board board) {
+        for (Face face : board.getFaces()) {
+            if (face.isViolated())
+                return false;
         }
         return true;
     }
 
-    private boolean validateCellExact(Board board) {
-        for (Cell[] row : board.cells) {
-            for (Cell cell : row) {
-                if (cell.clue < 0)
-                    continue;
-                if (cell.lineCount() != cell.clue)
-                    return false;
-            }
+    /**
+     * Checks that all faces with clues are exactly satisfied.
+     */
+    private boolean validateFaceExact(Board board) {
+        for (Face face : board.getFaces()) {
+            if (face.getClue() >= 0 && !face.isSatisfied())
+                return false;
         }
         return true;
     }
 
+    /**
+     * Checks that all active edges form a single connected loop.
+     * Uses Disjoint Set Union (DSU) to verify connectivity.
+     */
     private boolean singleLoop(Board board) {
         Set<Node> loopNodes = new HashSet<>();
         DisjointSet ds = new DisjointSet();
         int activeEdgeCount = 0;
 
-        List<Edge> allEdges = board.getAllEdges();
-        for (Edge e : allEdges) {
+        // Count active edges
+        for (Edge e : board.getEdges()) {
             if (e.isActive())
                 activeEdgeCount++;
         }
+        
         System.out.println("activeEdgeCount: " + activeEdgeCount);
 
-        for (Node[] row : board.nodes) {
-            for (Node node : row) {
-                int deg = 0;
-                for (Edge e : node.edges) {
-                    if (e.isActive())
-                        deg++;
-                }
+        // Find all nodes with degree 2 (part of the loop)
+        for (Node node : board.getNodes()) {
+            int deg = node.getActiveDegree();
 
-                if (deg != 0 && deg != 2)
-                    return false;
+            if (deg != 0 && deg != 2)
+                return false;
 
-                if (deg == 2) {
-                    ds.start(node);
-                    loopNodes.add(node);
-                }
+            if (deg == 2) {
+                ds.start(node);
+                loopNodes.add(node);
             }
         }
 
         if (loopNodes.isEmpty())
             return false;
 
-        for (Edge e : allEdges) {
+        // Unite all nodes connected by active edges
+        for (Edge e : board.getEdges()) {
             if (e.isActive()) {
                 ds.unite(e.a, e.b);
             }
         }
 
+        // Check that all loop nodes are in the same connected component
         Node first = loopNodes.iterator().next();
         Node root = ds.findParent(first);
         for (Node node : loopNodes) {
@@ -151,15 +148,22 @@ public class Validator {
                 return false;
         }
 
+        // Verify edge count matches node count (Euler's formula for a cycle)
         return activeEdgeCount == loopNodes.size();
     }
 
+    /**
+     * Prevents small disconnected loops from forming during gameplay.
+     * If multiple components exist and any is a complete loop (all degree 2),
+     * it's invalid (we want only one final loop).
+     */
     private boolean noSmallLoops(Board board) {
         List<Edge> activeEdges = new ArrayList<>();
-        for (Edge e : board.getAllEdges()) {
+        for (Edge e : board.getEdges()) {
             if (e.isActive())
                 activeEdges.add(e);
         }
+        
         if (activeEdges.isEmpty())
             return true;
 
@@ -172,6 +176,7 @@ public class Validator {
             ds.unite(e.a, e.b);
         }
 
+        // Group nodes by connected component
         Map<Node, List<Node>> components = new HashMap<>();
         for (Node n : ds.parent.keySet()) {
             Node root = ds.findParent(n);
@@ -181,21 +186,20 @@ public class Validator {
         if (components.size() <= 1)
             return true;
 
+        // Check if any component is a complete loop
         for (Map.Entry<Node, List<Node>> entry : components.entrySet()) {
             List<Node> nodes = entry.getValue();
             boolean allDegree2 = true;
+            
             for (Node n : nodes) {
-                int degree = 0;
-                for (Edge e : n.edges) {
-                    if (e.isActive())
-                        degree++;
-                }
+                int degree = n.getActiveDegree();
                 if (degree != 2) {
                     allDegree2 = false;
                     break;
                 }
             }
 
+            // If we found a complete loop and there are multiple components, it's invalid
             if (allDegree2) {
                 if (components.size() > 1)
                     return false;

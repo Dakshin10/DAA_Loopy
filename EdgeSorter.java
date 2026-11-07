@@ -1,8 +1,8 @@
-import java.util.Comparator;
 import java.util.List;
 
 /**
  * Utility to sort edges based on their importance.
+ * Uses graph-based edge scoring instead of coordinate access.
  *
  * Overall Time Complexity: O(E log E) average, O(E²) worst case
  * Overall Space Complexity: O(log E) average (recursion stack)
@@ -64,58 +64,46 @@ public class EdgeSorter {
     }
 
     /**
-     * Computes importance score for an edge.
+     * Computes importance score for an edge using graph-based heuristics.
+     * Lower score = higher priority.
      *
-     * Time Complexity: O(1)
+     * Time Complexity: O(F) where F is number of faces (typically small)
      * Space Complexity: O(1)
      */
     private static int getEdgeScore(Edge e, Board board) {
         int score = 100;
 
-        int r1 = e.a.row, c1 = e.a.col;
-        int r2 = e.b.row, c2 = e.b.col;
-
-        if (r1 == r2) { // Horizontal edge
-            int r = r1;
-            int c = Math.min(c1, c2);
-
-            if (r > 0)
-                score -= getCellCluePriority(board.cells[r - 1][c]);
-
-            if (r < board.rows)
-                score -= getCellCluePriority(board.cells[r][c]);
-
-        } else { // Vertical edge
-            int r = Math.min(r1, r2);
-            int c = c1;
-
-            if (c > 0)
-                score -= getCellCluePriority(board.cells[r][c - 1]);
-
-            if (c < board.cols)
-                score -= getCellCluePriority(board.cells[r][c]);
+        // Find faces that contain this edge
+        for (Face face : board.getFaces()) {
+            if (face.getEdges().contains(e)) {
+                score -= getFaceCluePriority(face);
+            }
         }
 
-        if (e.a.degree == 1 || e.b.degree == 1)
+        // Prioritize edges connected to nodes with degree 1 (extend paths)
+        if (e.a.getActiveDegree() == 1 || e.b.getActiveDegree() == 1)
             score -= 30;
 
         return score;
     }
 
     /**
-     * Returns priority weight for a cell clue.
+     * Returns priority weight for a face clue.
+     * Higher clues (3, 0) get higher priority.
      *
      * Time Complexity: O(1)
      * Space Complexity: O(1)
      */
-    private static int getCellCluePriority(Cell cell) {
-        if (cell.clue == -1)
+    private static int getFaceCluePriority(Face face) {
+        int clue = face.getClue();
+        
+        if (clue == -1)
             return 0;
-        if (cell.clue == 3)
+        if (clue == 3)
             return 40;
-        if (cell.clue == 0)
+        if (clue == 0)
             return 50;
-        if (cell.clue == 1 || cell.clue == 2)
+        if (clue == 1 || clue == 2)
             return 20;
         return 0;
     }

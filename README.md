@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**A competitive puzzle game powered by Graph Theory and Greedy Algorithms**
+**A competitive puzzle game powered by Greedy, Divide & Conquer, and Backtracking Algorithms**
 
 [![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://www.oracle.com/java/)
 [![Swing](https://img.shields.io/badge/GUI-Swing-blue.svg)](https://docs.oracle.com/javase/tutorial/uiswing/)
@@ -37,9 +37,11 @@
 
 - **Graph Theory** (Planar Graphs, Adjacency Lists, Connectivity)
 - **Greedy Algorithms** (Constraint Satisfaction, Local Optimization)
-- **Disjoint Set Union** (Union-Find for Loop Validation)
+- **Divide & Conquer** (Subproblem Decomposition, Independent Solving)
+- **Backtracking** (Hypothesis Testing, Constraint Propagation)
+- **Disjoint Set Union** (Union-Find for Loop Validation & Subproblem Detection)
 - **Geometric Algorithms** (Point-to-Segment Distance Calculation)
-- **Heuristic Search** (Prioritized Edge Selection)
+- **QuickSort** (Edge Prioritization for Heuristic Search)
 
 The game features a beautiful dark-themed UI with smooth animations, color-coded player moves, and real-time validation feedback.
 
@@ -55,9 +57,13 @@ The game features a beautiful dark-themed UI with smooth animations, color-coded
 - **Hover Effects** showing which edge you're about to interact with
 
 ### 🤖 **Intelligent CPU Opponent**
-- **Greedy Logic Deduction** for instant forced moves
+- **Single-Move Strategy** - CPU makes exactly one move per turn for interactive gameplay
+- **Three-Algorithm Pipeline**:
+  1. **Greedy Solver** - Fastest, tries logical deductions first
+  2. **Divide & Conquer** - Decomposes into independent subproblems
+  3. **Backtracking** - Educated guessing when logic exhausted
 - **Constraint Propagation** across cells and nodes
-- **Heuristic Guessing** when logical deductions are exhausted
+- **Real-time Algorithm Feedback** - Console shows which algorithm made each move
 - **Fail-Fast Validation** to avoid illegal states
 
 ### 🎲 **Procedural Puzzle Generation**
@@ -138,6 +144,10 @@ INACTIVE → Excluded from loop (white X mark)
 
 ### 1. **Greedy Constraint Satisfaction** (`Greedy.java`)
 
+**Two Operating Modes:**
+- `solve()` - Batch mode: Applies all deductions until convergence
+- `solveSingleMove()` - Interactive mode: Makes exactly one edge decision
+
 **Cell-Clue Logic:**
 - **Saturation**: If active edges = clue, mark remaining as INACTIVE
 - **Requirement**: If active + unknown = clue, mark all unknown as ACTIVE
@@ -148,7 +158,68 @@ INACTIVE → Excluded from loop (white X mark)
 
 **Complexity:** O(C + V) per pass, where C = cells, V = vertices
 
-### 2. **Disjoint Set Union (DSU)** (`Validator.java`)
+### 2. **Divide & Conquer** (`DivideAndConquerSolver.java`)
+
+**Strategy:**
+1. **DIVIDE**: Partition UNKNOWN edges into independent subproblems using Union-Find
+2. **CONQUER**: Solve each subproblem independently using greedy + limited backtracking
+3. **MERGE**: Validate global loop connectivity after solving
+
+**Subproblem Detection:**
+```pseudo
+function divideIntoSubproblems():
+    // Use Union-Find to group connected unknown edges
+    for each unknownEdge:
+        // Unite edges sharing nodes or faces
+        for each neighbor in (nodeNeighbors + faceNeighbors):
+            if neighbor.isUnknown():
+                union(edge, neighbor)
+    
+    // Group by root to form independent subproblems
+    return groupByRoot()
+```
+
+**Single Move Mode:**
+- Identifies smallest subproblem first (easier to solve)
+- Makes one edge decision within that subproblem
+- Returns immediately after successful move
+
+**Complexity:** 
+- Division: O(E · α(V)) ≈ O(E) with path compression
+- Single move: O(F) where F = faces in smallest subproblem
+
+### 3. **Backtracking with Heuristics** (`Backtracking.java`)
+
+**Edge Selection:**
+- Uses `EdgeSorter.sortEdges()` with QuickSort to prioritize constrained edges
+- Scoring heuristic:
+  - High-value clues (0, 3) → higher priority
+  - Edges near degree-1 nodes → higher priority
+  - Edges in multiple constrained faces → higher priority
+
+**Hypothesis Testing:**
+```pseudo
+function makeBacktrackingMove():
+    edge = pickBestUnknownEdge()  // Sorted by heuristic
+    
+    // Try ACTIVE first
+    edge.setState(ACTIVE)
+    if validatePartial():
+        return true  // Valid move found
+    
+    // Try INACTIVE
+    edge.setState(INACTIVE)
+    if validatePartial():
+        return true  // Valid move found
+    
+    // Both failed - reset
+    edge.setState(UNKNOWN)
+    return false
+```
+
+**Complexity:** O(E log E) for sorting + O(1) for single move
+
+### 4. **Disjoint Set Union (DSU)** (`Validator.java`)
 
 Used for **single loop validation**:
 
@@ -166,7 +237,7 @@ function validateFinal():
 
 **Complexity:** O(E · α(V)) ≈ O(E) with path compression
 
-### 3. **Geometric Hit Detection** (`SlitherlinkApp.java`)
+### 5. **Geometric Hit Detection** (`SlitherlinkApp.java`)
 
 **Point-to-Segment Distance:**
 
@@ -186,7 +257,7 @@ function findEdgeAt(mouseX, mouseY):
 
 **Complexity:** O(E) linear search with early termination
 
-### 4. **Procedural Puzzle Generation** (`PuzzleGenerator.java`)
+### 6. **Procedural Puzzle Generation** (`PuzzleGenerator.java`)
 
 **Random Walk Algorithm:**
 
@@ -208,29 +279,47 @@ function generate(rows, cols):
     removeRandomClues(30%)
 ```
 
-### 5. **CPU Heuristic Search** (`GameController.java`)
+### 7. **CPU Algorithm Integration** (`GameController.java`)
 
-**Decision Making:**
+**Single-Move Decision Pipeline:**
 
 ```pseudo
 function executeCpuMove():
-    // 1. Try logical deductions
-    if Greedy.applyAllDeductions():
+    // Strategy 1: Try Greedy (fastest, most reliable)
+    if Greedy.solveSingleMove():
+        log("CPU: Greedy made a move")
         return true
     
-    // 2. Heuristic guessing
-    for each unknownEdge:
-        // Hypothesis: what if this is ACTIVE?
-        tempActivate(edge)
-        
-        if Validator.isPartiallyValid():
-            edge.setStatus(ACTIVE, CPU)
-            return true
-        else:
-            // Contradiction → must be INACTIVE
-            edge.setStatus(INACTIVE, CPU)
-            return true
+    // Strategy 2: Try Divide & Conquer (for independent subproblems)
+    if DivideAndConquer.solveSingleMove():
+        log("CPU: D&C made a move")
+        return true
+    
+    // Strategy 3: Fallback to Backtracking (educated guess)
+    edge = Backtracking.pickBestUnknownEdge()
+    
+    // Try ACTIVE first
+    edge.setState(ACTIVE)
+    if Validator.validatePartial():
+        log("CPU: Backtracking guessed ACTIVE")
+        return true
+    
+    // Try INACTIVE
+    edge.setState(INACTIVE)
+    if Validator.validatePartial():
+        log("CPU: Backtracking guessed INACTIVE")
+        return true
+    
+    // Both failed - no valid move
+    edge.setState(UNKNOWN)
+    return false
 ```
+
+**Key Features:**
+- Makes exactly **one edge decision** per call
+- Tries algorithms in order of reliability: Greedy → D&C → Backtracking
+- Logs which algorithm made each move for educational transparency
+- All moves validated before committing
 
 ---
 
@@ -295,24 +384,28 @@ function executeCpuMove():
 ## 📁 Project Structure
 
 ```
-DAA_Loopy_Phase1/
+DAA_Loopy_Phase2/
 │
-├── SlitherlinkApp.java      # Main GUI application (Swing)
-├── GameController.java      # Game logic orchestrator
-├── Board.java               # Board state management
-├── Node.java                # Graph vertex representation
-├── Edge.java                # Graph edge representation
-├── Cell.java                # Clue cell representation
-├── Greedy.java              # Greedy constraint satisfaction
-├── Validator.java           # Win condition validation (DSU)
-├── PuzzleGenerator.java     # Procedural puzzle creation
-├── EdgeSorter.java          # CPU edge prioritization
-├── LoopReporter.java        # Victory reporting
-├── PlayerType.java          # Enum: HUMAN, CPU
-├── EdgeStatus.java          # Enum: ACTIVE, INACTIVE, UNKNOWN
-├── DisjointSet.class        # Union-Find data structure
-├── project_workflow.txt     # Technical documentation
-└── README.md                # This file
+├── SlitherlinkApp.java           # Main GUI application (Swing)
+├── GameController.java           # Game logic orchestrator
+├── Board.java                    # Board state management
+├── Node.java                     # Graph vertex representation
+├── Edge.java                     # Graph edge representation
+├── Face.java                     # Face/Cell representation (renamed from Cell)
+├── Greedy.java                   # Greedy constraint satisfaction
+├── DivideAndConquerSolver.java   # D&C subproblem decomposition
+├── Subproblem.java               # Subproblem data structure
+├── Backtracking.java             # Backtracking solver
+├── EdgeSorter.java               # QuickSort-based edge prioritization
+├── Validator.java                # Win condition validation (DSU)
+├── PuzzleGenerator.java          # Procedural puzzle creation
+├── BoardPrinter.java             # Console output utilities
+├── RenderingContext.java         # Rendering configuration
+├── LoopReporter.java             # Victory reporting
+├── PlayerType.java               # Enum: HUMAN, CPU, NONE
+├── EdgeStatus.java               # Enum: ACTIVE, INACTIVE, UNKNOWN
+├── DisjointSet.class             # Union-Find data structure
+└── README.md                     # This file
 ```
 
 ---
@@ -331,12 +424,13 @@ This ensures players can click anywhere near an edge and the correct edge will b
 
 ### CPU Intelligence
 
-The CPU uses a **two-phase approach**:
+The CPU uses a **three-algorithm pipeline** for single-move decision making:
 
-1. **Logical Deduction Phase**: Apply greedy rules until no forced moves remain
-2. **Heuristic Guessing Phase**: Test hypotheses and use contradiction detection
+1. **Greedy Phase**: Try logical deductions (fastest, most reliable)
+2. **Divide & Conquer Phase**: Decompose into independent subproblems
+3. **Backtracking Phase**: Educated guessing with hypothesis testing
 
-This makes the CPU feel intelligent while maintaining fast response times.
+Each CPU turn makes **exactly one edge decision**, allowing players to observe the algorithm's reasoning step-by-step. Console output shows which algorithm made each move, making the game educational and transparent.
 
 ### Graph State Logging
 
@@ -368,6 +462,9 @@ This is invaluable for debugging and understanding the algorithm behavior.
 Contributions are welcome! Here are some ideas:
 
 ### Potential Enhancements
+- [x] ~~Add Divide & Conquer algorithm~~ ✅ **Implemented in Phase 2**
+- [x] ~~Single-move CPU logic~~ ✅ **Implemented in Phase 2**
+- [x] ~~Backtracking with heuristics~~ ✅ **Implemented in Phase 2**
 - [ ] Add difficulty levels (Easy, Medium, Hard)
 - [ ] Implement larger board sizes (7×7, 10×10)
 - [ ] Add move history and replay functionality
@@ -407,9 +504,16 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 👨‍💻 Author
 
-**DAA Project - Phase 1**  
+**DAA Project - Phase 2**  
 *Design & Analysis of Algorithms Course*  
 Semester 4, CSE
+
+**Algorithms Implemented:**
+- ✅ Greedy Algorithms (Constraint Satisfaction)
+- ✅ Divide & Conquer (Subproblem Decomposition)
+- ✅ Backtracking (Hypothesis Testing)
+- ✅ QuickSort (Edge Prioritization)
+- ✅ Union-Find (Loop Validation)
 
 ---
 

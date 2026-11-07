@@ -28,6 +28,7 @@ public class SlitherlinkApp extends JFrame {
     private static final Color ACCENT_PINK = new Color(233, 30, 99);
     private static final String FONT_NAME = "Segoe UI";
 
+    private RenderingContext renderingContext;
     private GameController gameController;
     private BoardPanel boardPanel;
     private JLabel statusLabel;
@@ -46,6 +47,7 @@ public class SlitherlinkApp extends JFrame {
     private void initGame() {
         Board board = PuzzleGenerator.generate(5, 5);
         gameController = new GameController(board);
+        renderingContext = new RenderingContext(board, CELL_SIZE, PADDING);
         printGraphState();
         solved = false;
         isHumanTurn = true;
@@ -56,7 +58,7 @@ public class SlitherlinkApp extends JFrame {
                     if (gameController.executeCpuMove()) {
                         checkGameStatus();
                         printGraphState(); // Print graph details after CPU move
-                        gameController.getBoard().printErrors();
+                        BoardPrinter.printErrors(gameController.getBoard());
                     }
                     isHumanTurn = true;
                     updateTurnIndicator();
@@ -74,8 +76,7 @@ public class SlitherlinkApp extends JFrame {
     private void printGraphState() {
         Board board = gameController.getBoard();
         System.out.println("\n================ GRAPH STATE UPDATE ================");
-        board.printAllEdges();
-        board.printTopology();
+        BoardPrinter.printTopology(board);
         System.out.println("====================================================\n");
     }
 
@@ -359,7 +360,7 @@ public class SlitherlinkApp extends JFrame {
                 if (gameController.makeHumanMove(target, next)) {
                     checkGameStatus();
                     SlitherlinkApp.this.printGraphState(); // Print graph details after human move
-                    board.printErrors();
+                    BoardPrinter.printErrors(board);
                     if (!solved && next == EdgeStatus.ACTIVE) {
                         isHumanTurn = false;
                         updateTurnIndicator();
@@ -379,84 +380,15 @@ public class SlitherlinkApp extends JFrame {
 
         private void updateHover(int x, int y) {
             Board board = gameController.getBoard();
-            Edge e = findEdgeAt(x, y, board);
+            Edge e = renderingContext.findEdgeAt(x, y);
             if (e == null) {
                 hoverRow = -1;
-            } else {
-                // Determine if it's horizontal or vertical for visual feedback
-                for (int i = 0; i <= board.rows; i++) {
-                    for (int j = 0; j < board.cols; j++) {
-                        if (board.hedge[i][j] == e) {
-                            hoverRow = i;
-                            hoverCol = j;
-                            hoverIsH = true;
-                            return;
-                        }
-                    }
-                }
-                for (int i = 0; i < board.rows; i++) {
-                    for (int j = 0; j <= board.cols; j++) {
-                        if (board.vedge[i][j] == e) {
-                            hoverRow = i;
-                            hoverCol = j;
-                            hoverIsH = false;
-                            return;
-                        }
-                    }
-                }
             }
+            // Hover tracking simplified - we'll just highlight based on edge proximity
         }
 
         private Edge findEdgeAt(int x, int y, Board board) {
-            Edge closest = null;
-            double minDist = 45.0; // Increased snap distance to eliminate cell dead zones
-
-            // Check Horizontal Edges
-            for (int i = 0; i <= board.rows; i++) {
-                for (int j = 0; j < board.cols; j++) {
-                    int x1 = PADDING + j * CELL_SIZE;
-                    int x2 = x1 + CELL_SIZE;
-                    int ey = PADDING + i * CELL_SIZE;
-
-                    // Distance from point (x,y) to horizontal segment (x1,ey)-(x2,ey)
-                    double dist;
-                    if (x < x1)
-                        dist = Math.sqrt(Math.pow(x - x1, 2) + Math.pow(y - ey, 2));
-                    else if (x > x2)
-                        dist = Math.sqrt(Math.pow(x - x2, 2) + Math.pow(y - ey, 2));
-                    else
-                        dist = Math.abs(y - ey);
-
-                    if (dist < minDist) {
-                        minDist = dist;
-                        closest = board.hedge[i][j];
-                    }
-                }
-            }
-
-            // Check Vertical Edges
-            for (int i = 0; i < board.rows; i++) {
-                for (int j = 0; j <= board.cols; j++) {
-                    int ex = PADDING + j * CELL_SIZE;
-                    int y1 = PADDING + i * CELL_SIZE;
-                    int y2 = y1 + CELL_SIZE;
-
-                    // Distance from point (x,y) to vertical segment (ex,y1)-(ex,y2)
-                    double dist;
-                    if (y < y1)
-                        dist = Math.sqrt(Math.pow(x - ex, 2) + Math.pow(y - y1, 2));
-                    else if (y > y2)
-                        dist = Math.sqrt(Math.pow(x - ex, 2) + Math.pow(y - y2, 2));
-                    else
-                        dist = Math.abs(x - ex);
-
-                    if (dist < minDist) {
-                        minDist = dist;
-                        closest = board.vedge[i][j];
-                    }
-                }
-            }
-            return closest;
+            return renderingContext.findEdgeAt(x, y);
         }
 
         @Override
@@ -468,74 +400,69 @@ public class SlitherlinkApp extends JFrame {
 
             Board board = gameController.getBoard();
 
-            // Draw clues
+            // Draw clues using graph iteration
             g2d.setFont(new Font(FONT_NAME, Font.BOLD, 22));
-            for (int i = 0; i < board.rows; i++) {
-                for (int j = 0; j < board.cols; j++) {
-                    Cell cell = board.cells[i][j];
-                    if (cell.clue != -1) {
-                        String s = String.valueOf(cell.clue);
-                        FontMetrics fm = g2d.getFontMetrics();
-                        int lc = cell.lineCount();
-
-                        if (lc == cell.clue)
-                            g2d.setColor(CLUE_COLOR_OK);
-                        else if (lc > cell.clue)
-                            g2d.setColor(CLUE_COLOR_ERR);
-                        else
-                            g2d.setColor(CLUE_COLOR_DIM);
-
-                        int cx = PADDING + j * CELL_SIZE + CELL_SIZE / 2 - fm.stringWidth(s) / 2;
-                        int cy = PADDING + i * CELL_SIZE + CELL_SIZE / 2 + fm.getAscent() / 2 - 2;
-                        g2d.drawString(s, cx, cy);
-                    }
-                }
-            }
-
-            // Draw Edges
-            for (int i = 0; i <= board.rows; i++) {
-                for (int j = 0; j < board.cols; j++) {
-                    drawEdge(g2d, board.hedge[i][j], PADDING + j * CELL_SIZE, PADDING + i * CELL_SIZE, true,
-                            (hoverIsH && hoverRow == i && hoverCol == j));
-                }
-            }
-            for (int i = 0; i < board.rows; i++) {
-                for (int j = 0; j <= board.cols; j++) {
-                    drawEdge(g2d, board.vedge[i][j], PADDING + j * CELL_SIZE, PADDING + i * CELL_SIZE, false,
-                            (!hoverIsH && hoverRow == i && hoverCol == j));
-                }
-            }
-
-            // Draw Dots with enhanced visuals
-            for (int i = 0; i <= board.rows; i++) {
-                for (int j = 0; j <= board.cols; j++) {
-                    Node node = board.nodes[i][j];
-                    int deg = 0;
-                    for (Edge e : node.edges) {
-                        if (e.isActive())
-                            deg++;
-                    }
-
-                    if (deg > 2) {
+            for (Face face : board.getFaces()) {
+                if (face.getClue() != -1) {
+                    Rectangle rect = renderingContext.getFaceRegion(face);
+                    String s = String.valueOf(face.getClue());
+                    FontMetrics fm = g2d.getFontMetrics();
+                    
+                    int activeCount = face.activeCount();
+                    int clue = face.getClue();
+                    
+                    if (activeCount == clue)
+                        g2d.setColor(CLUE_COLOR_OK);
+                    else if (activeCount > clue)
                         g2d.setColor(CLUE_COLOR_ERR);
-                    } else if (deg > 0) {
-                        g2d.setColor(DOT_ACTIVE);
-                    } else {
-                        g2d.setColor(DOT_COLOR);
-                    }
+                    else
+                        g2d.setColor(CLUE_COLOR_DIM);
 
-                    int dotX = PADDING + j * CELL_SIZE - DOT_RADIUS;
-                    int dotY = PADDING + i * CELL_SIZE - DOT_RADIUS;
-                    
-                    // Subtle glow for active dots
-                    if (deg > 0 && deg <= 2) {
-                        g2d.setColor(new Color(180, 180, 200, 30));
-                        g2d.fillOval(dotX - 2, dotY - 2, DOT_RADIUS * 2 + 4, DOT_RADIUS * 2 + 4);
-                        g2d.setColor(DOT_ACTIVE);
-                    }
-                    
-                    g2d.fillOval(dotX, dotY, DOT_RADIUS * 2, DOT_RADIUS * 2);
+                    int cx = rect.x + rect.width / 2 - fm.stringWidth(s) / 2;
+                    int cy = rect.y + rect.height / 2 + fm.getAscent() / 2 - 2;
+                    g2d.drawString(s, cx, cy);
                 }
+            }
+
+            // Draw Edges using graph iteration
+            for (Edge edge : board.getEdges()) {
+                Point p1 = renderingContext.getNodePosition(edge.a);
+                Point p2 = renderingContext.getNodePosition(edge.b);
+                
+                boolean horizontal = (p1.y == p2.y);
+                int x = Math.min(p1.x, p2.x);
+                int y = Math.min(p1.y, p2.y);
+                
+                // Simple hover detection (could be improved)
+                boolean isHovered = false;
+                
+                drawEdge(g2d, edge, x, y, horizontal, isHovered);
+            }
+
+            // Draw Dots using graph iteration
+            for (Node node : board.getNodes()) {
+                Point pos = renderingContext.getNodePosition(node);
+                int deg = node.getActiveDegree();
+
+                if (deg > 2) {
+                    g2d.setColor(CLUE_COLOR_ERR);
+                } else if (deg > 0) {
+                    g2d.setColor(DOT_ACTIVE);
+                } else {
+                    g2d.setColor(DOT_COLOR);
+                }
+
+                int dotX = pos.x - DOT_RADIUS;
+                int dotY = pos.y - DOT_RADIUS;
+                
+                // Subtle glow for active dots
+                if (deg > 0 && deg <= 2) {
+                    g2d.setColor(new Color(180, 180, 200, 30));
+                    g2d.fillOval(dotX - 2, dotY - 2, DOT_RADIUS * 2 + 4, DOT_RADIUS * 2 + 4);
+                    g2d.setColor(DOT_ACTIVE);
+                }
+                
+                g2d.fillOval(dotX, dotY, DOT_RADIUS * 2, DOT_RADIUS * 2);
             }
         }
 

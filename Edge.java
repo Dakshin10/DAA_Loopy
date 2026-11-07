@@ -6,7 +6,6 @@ public class Edge {
     public Node a;
     public Node b;
     private EdgeStatus state;
-    public boolean broken = false;
     private PlayerType owner = PlayerType.NONE;
 
     public Edge(Node n1, Node n2) {
@@ -28,31 +27,14 @@ public class Edge {
             addToNodes();
         }
 
+        EdgeStatus oldState = state;
         state = newState;
+        
         if (state == EdgeStatus.ACTIVE) {
             this.owner = player;
-            // degree update is now redundant if we are using list size,
-            // but we keep it for now if logic depends explicitly on this field.
-            a.degree++;
-            b.degree++;
-        } else if (state == EdgeStatus.INACTIVE) {
-            // No owner for inactive
-            this.owner = PlayerType.NONE;
         } else {
-            // UNKNOWN
             this.owner = PlayerType.NONE;
         }
-
-        // Fix degree counts from previous state
-        // If we were ACTIVE before, we need to decrement
-        // (Note: We handle the transition logic carefully here)
-        // Wait, the previous logic was simpler but didn't handle topology.
-        // Let's rely on a cleaner degree management.
-        // Re-calibrating degree variable to match Active count only.
-        // Actually, let's keep the manual degree management from before for safety
-        // but it might be better to make degree a calculated property?
-        // For minimal breakage, let's stick to the previous pattern BUT
-        // wrap the topology change.
     }
 
     // Rewrite of the specific methods to encompass both Degree and Topology
@@ -65,18 +47,11 @@ public class Edge {
 
         state = EdgeStatus.ACTIVE;
         this.owner = player;
-        a.degree++;
-        b.degree++;
     }
 
     public void setInactive() {
         if (state == EdgeStatus.INACTIVE)
             return;
-
-        if (state == EdgeStatus.ACTIVE) {
-            a.degree--;
-            b.degree--;
-        }
 
         state = EdgeStatus.INACTIVE;
         this.owner = PlayerType.NONE;
@@ -90,25 +65,18 @@ public class Edge {
         if (state == EdgeStatus.INACTIVE)
             addToNodes(); // Restore topology
 
-        if (state == EdgeStatus.ACTIVE) {
-            a.degree--;
-            b.degree--;
-        }
-
         state = EdgeStatus.UNKNOWN;
         this.owner = PlayerType.NONE;
     }
 
     private void addToNodes() {
-        if (!a.edges.contains(this))
-            a.edges.add(this);
-        if (!b.edges.contains(this))
-            b.edges.add(this);
+        a.addEdge(this);
+        b.addEdge(this);
     }
 
     private void removeFromNodes() {
-        a.edges.remove(this);
-        b.edges.remove(this);
+        a.removeEdge(this);
+        b.removeEdge(this);
     }
 
     // Overload for compatibility
@@ -142,6 +110,7 @@ public class Edge {
 
     @Override
     public String toString() {
-        return "(" + a.row + "," + a.col + ")-(" + b.row + "," + b.col + "): " + state;
+        return "Edge(" + a.getId() + "-" + b.getId() + "): " + state;
     }
 }
+

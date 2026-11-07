@@ -1,198 +1,253 @@
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
+/**
+ * Represents the game board as a pure graph structure.
+ * No 2D arrays - uses Sets for nodes, edges, and faces.
+ * Grid dimensions are stored only for rendering purposes.
+ */
 public class Board {
-    public int rows, cols;
-    public Edge[][] hedge;
-    public Edge[][] vedge;
-    public Node[][] nodes;
-    public Cell[][] cells;
+    private final int rows, cols;
+    private final Set<Node> nodes;
+    private final Set<Edge> edges;
+    private final Set<Face> faces;
+    
+    // Helper maps for quick lookup
+    private final Map<Integer, Node> nodeById;
+    private final Map<Integer, Face> faceById;
 
-    public Board(int r, int c) {
-        this.rows = r;
-        this.cols = c;
+    /**
+     * Creates a new board with the given dimensions.
+     * 
+     * @param rows Number of rows in the grid
+     * @param cols Number of columns in the grid
+     */
+    public Board(int rows, int cols) {
+        this.rows = rows;
+        this.cols = cols;
+        this.nodes = new HashSet<>();
+        this.edges = new HashSet<>();
+        this.faces = new HashSet<>();
+        this.nodeById = new HashMap<>();
+        this.faceById = new HashMap<>();
+        
+        buildGraph();
+    }
+
+    /**
+     * Builds the graph topology: nodes, edges, and faces.
+     * Node IDs are assigned in row-major order: id = row * (cols+1) + col
+     * Face IDs are assigned in row-major order: id = row * cols + col
+     */
+    private void buildGraph() {
+        // Create nodes
         createNodes();
+        
+        // Create edges (horizontal and vertical)
         createEdges();
-        createCells();
+        
+        // Create faces (cells with clues)
+        createFaces();
     }
 
+    /**
+     * Creates all nodes in the graph.
+     * Node ID = row * (cols+1) + col
+     */
     private void createNodes() {
-        nodes = new Node[rows + 1][cols + 1];
         for (int i = 0; i <= rows; i++) {
             for (int j = 0; j <= cols; j++) {
-                nodes[i][j] = new Node(i, j);
+                int id = i * (cols + 1) + j;
+                Node node = new Node(id);
+                nodes.add(node);
+                nodeById.put(id, node);
             }
         }
     }
 
+    /**
+     * Creates all edges in the graph.
+     * Edges connect adjacent nodes horizontally and vertically.
+     */
     private void createEdges() {
-        hedge = new Edge[rows + 1][cols];
+        // Horizontal edges
         for (int i = 0; i <= rows; i++) {
             for (int j = 0; j < cols; j++) {
-                Edge e = new Edge(nodes[i][j], nodes[i][j + 1]);
-                hedge[i][j] = e;
-                nodes[i][j].addEdge(e);
-                nodes[i][j + 1].addEdge(e);
+                int id1 = i * (cols + 1) + j;
+                int id2 = i * (cols + 1) + (j + 1);
+                
+                Node n1 = nodeById.get(id1);
+                Node n2 = nodeById.get(id2);
+                
+                Edge edge = new Edge(n1, n2);
+                edges.add(edge);
+                
+                // Add edge to nodes' adjacency lists
+                n1.addEdge(edge);
+                n2.addEdge(edge);
             }
         }
 
-        vedge = new Edge[rows][cols + 1];
+        // Vertical edges
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j <= cols; j++) {
-                Edge e = new Edge(nodes[i][j], nodes[i + 1][j]);
-                vedge[i][j] = e;
-                nodes[i][j].addEdge(e);
-                nodes[i + 1][j].addEdge(e);
+                int id1 = i * (cols + 1) + j;
+                int id2 = (i + 1) * (cols + 1) + j;
+                
+                Node n1 = nodeById.get(id1);
+                Node n2 = nodeById.get(id2);
+                
+                Edge edge = new Edge(n1, n2);
+                edges.add(edge);
+                
+                // Add edge to nodes' adjacency lists
+                n1.addEdge(edge);
+                n2.addEdge(edge);
             }
         }
     }
 
-    private void createCells() {
-        cells = new Cell[rows][cols];
+    /**
+     * Creates all faces (cells) in the graph.
+     * Each face is bounded by exactly 4 edges.
+     * Face ID = row * cols + col
+     */
+    private void createFaces() {
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
-                Cell cell = new Cell(i, j, -1);
-                cell.top = hedge[i][j];
-                cell.bottom = hedge[i + 1][j];
-                cell.left = vedge[i][j];
-                cell.right = vedge[i][j + 1];
-                cells[i][j] = cell;
+                int faceId = i * cols + j;
+                
+                // Get the four corner nodes
+                int topLeftId = i * (cols + 1) + j;
+                int topRightId = i * (cols + 1) + (j + 1);
+                int bottomLeftId = (i + 1) * (cols + 1) + j;
+                int bottomRightId = (i + 1) * (cols + 1) + (j + 1);
+                
+                Node topLeft = nodeById.get(topLeftId);
+                Node topRight = nodeById.get(topRightId);
+                Node bottomLeft = nodeById.get(bottomLeftId);
+                Node bottomRight = nodeById.get(bottomRightId);
+                
+                // Find the four edges
+                Edge top = findEdgeBetween(topLeft, topRight);
+                Edge bottom = findEdgeBetween(bottomLeft, bottomRight);
+                Edge left = findEdgeBetween(topLeft, bottomLeft);
+                Edge right = findEdgeBetween(topRight, bottomRight);
+                
+                // Create face with no clue initially (-1)
+                Face face = new Face(faceId, -1, java.util.Arrays.asList(top, bottom, left, right));
+                faces.add(face);
+                faceById.put(faceId, face);
             }
         }
     }
 
-    public List<Edge> getAllEdges() {
-        List<Edge> edges = new ArrayList<>((rows + 1) * cols + rows * (cols + 1));
-        for (int i = 0; i <= rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                if (hedge[i][j] != null)
-                    edges.add(hedge[i][j]);
+    /**
+     * Helper method to find an edge between two nodes.
+     */
+    private Edge findEdgeBetween(Node n1, Node n2) {
+        for (Edge e : n1.getEdges()) {
+            if ((e.a == n1 && e.b == n2) || (e.a == n2 && e.b == n1)) {
+                return e;
             }
         }
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j <= cols; j++) {
-                if (vedge[i][j] != null)
-                    edges.add(vedge[i][j]);
-            }
-        }
-        return edges;
+        return null;
     }
 
-    public void print() {
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                System.out.print("+");
-                Edge e = hedge[i][j];
-                if (e != null && e.isActive())
-                    System.out.print("---");
-                else if (e != null && e.isInactive())
-                    System.out.print(" X ");
-                else
-                    System.out.print("   ");
-            }
-            System.out.println("+");
-
-            for (int j = 0; j < cols; j++) {
-                Edge e = vedge[i][j];
-                if (e != null && e.isActive())
-                    System.out.print("|");
-                else if (e != null && e.isInactive())
-                    System.out.print("X");
-                else
-                    System.out.print(" ");
-
-                if (cells[i][j].clue == -1)
-                    System.out.print("   ");
-                else
-                    System.out.printf(" %d ", cells[i][j].clue);
-            }
-            Edge rightEdge = vedge[i][cols];
-            if (rightEdge != null && rightEdge.isActive())
-                System.out.println("|");
-            else if (rightEdge != null && rightEdge.isInactive())
-                System.out.println("X");
-            else
-                System.out.println(" ");
-        }
-
-        for (int j = 0; j < cols; j++) {
-            System.out.print("+");
-            Edge e = hedge[rows][j];
-            if (e != null && e.isActive())
-                System.out.print("---");
-            else if (e != null && e.isInactive())
-                System.out.print(" X ");
-            else
-                System.out.print("   ");
-        }
-        System.out.println("+");
-    }
-
-    public void printAllEdges() {
-        System.out.println("Horizontal edges:");
-        for (int i = 0; i <= rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                System.out.print(hedge[i][j] + " ");
-            }
-            System.out.println();
-        }
-        System.out.println("Vertical edges:");
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j <= cols; j++) {
-                System.out.print(vedge[i][j] + " ");
-            }
-            System.out.println();
+    /**
+     * Sets the clue value for a face at the given grid position.
+     * 
+     * @param row Grid row
+     * @param col Grid column
+     * @param clue Clue value (0-3), or -1 for no clue
+     */
+    public void setClue(int row, int col, int clue) {
+        int faceId = row * cols + col;
+        Face oldFace = faceById.get(faceId);
+        
+        if (oldFace != null) {
+            faces.remove(oldFace);
+            Face newFace = new Face(faceId, clue, oldFace.getEdges());
+            faces.add(newFace);
+            faceById.put(faceId, newFace);
         }
     }
 
-    public void printTopology() {
-        System.out.println("\n--- GRAPH TOPOLOGY (Active Loops) ---");
-        for (int i = 0; i <= rows; i++) {
-            for (int j = 0; j <= cols; j++) {
-                Node n = nodes[i][j];
-                List<String> neighborCoords = new ArrayList<>();
-                for (Edge e : n.edges) {
-                    if (e.isActive()) {
-                        Node other = (e.a == n) ? e.b : e.a;
-                        neighborCoords.add(String.format("[%d,%d]", other.row, other.col));
-                    }
-                }
-                if (!neighborCoords.isEmpty()) {
-                    System.out.printf("Node[%d][%d]: %s%n", i, j, String.join(", ", neighborCoords));
-                }
-            }
-        }
-        System.out.println("----------------------------------------\n");
+    /**
+     * Gets the clue value at a grid position.
+     * 
+     * @param row Grid row
+     * @param col Grid column
+     * @return Clue value, or -1 if no clue
+     */
+    public int getClue(int row, int col) {
+        int faceId = row * cols + col;
+        Face face = faceById.get(faceId);
+        return face != null ? face.getClue() : -1;
     }
 
-    public void printNodes() {
-        System.out.println("Nodes and Attributes:");
-        for (int i = 0; i <= rows; i++) {
-            for (int j = 0; j <= cols; j++) {
-                System.out.println(nodes[i][j]);
-            }
-        }
+    /**
+     * Gets all nodes in the graph.
+     * 
+     * @return Unmodifiable set of nodes
+     */
+    public Set<Node> getNodes() {
+        return Collections.unmodifiableSet(nodes);
     }
 
-    public void printErrors() {
-        boolean foundError = false;
-        for (int i = 0; i <= rows; i++) {
-            for (int j = 0; j <= cols; j++) {
-                Node node = nodes[i][j];
-                int activeDegree = 0;
-                for (Edge e : node.edges) {
-                    if (e.isActive())
-                        activeDegree++;
-                }
-                if (activeDegree > 2) {
-                    if (!foundError) {
-                        System.out.println("\n--- TERMINAL RULE VIOLATIONS DETECTED ---");
-                        foundError = true;
-                    }
-                    System.out.print(node);
-                }
-            }
-        }
+    /**
+     * Gets all edges in the graph.
+     * 
+     * @return Unmodifiable set of edges
+     */
+    public Set<Edge> getEdges() {
+        return Collections.unmodifiableSet(edges);
+    }
+
+    /**
+     * Gets all faces in the graph.
+     * 
+     * @return Unmodifiable set of faces
+     */
+    public Set<Face> getFaces() {
+        return Collections.unmodifiableSet(faces);
+    }
+
+    /**
+     * Gets the number of rows (for rendering only).
+     */
+    public int getRows() {
+        return rows;
+    }
+
+    /**
+     * Gets the number of columns (for rendering only).
+     */
+    public int getCols() {
+        return cols;
+    }
+
+    /**
+     * Gets a node by its ID.
+     * 
+     * @param id Node ID
+     * @return The node, or null if not found
+     */
+    public Node getNodeById(int id) {
+        return nodeById.get(id);
+    }
+
+    /**
+     * Gets a face by its ID.
+     * 
+     * @param id Face ID
+     * @return The face, or null if not found
+     */
+    public Face getFaceById(int id) {
+        return faceById.get(id);
     }
 }
